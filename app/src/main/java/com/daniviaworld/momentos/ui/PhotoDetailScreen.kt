@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import com.daniviaworld.momentos.data.ViewMode
 import kotlin.math.abs
 import androidx.compose.ui.draw.drawWithContent
@@ -115,7 +120,14 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
             .focusable(),
     ) {
         val transition = vm.viewMode
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
+        var zoomed by remember { mutableStateOf(false) }
+        LaunchedEffect(pager.settledPage) { zoomed = false }
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            userScrollEnabled = !zoomed, // con la foto ampliada, el dedo mueve la foto y no cambia de foto
+        ) { page ->
             val item = photos[page]
             Box(Modifier.fillMaxSize().pageTransition(pager, page, transition)) {
             if (item.isVideo && item.videoUrl.isNotBlank()) {
@@ -135,7 +147,7 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                     }
                 }
             } else {
-                ZoomablePhoto(item, enabled = !vm.isTv) { showUi = !showUi }
+                ZoomablePhoto(item, enabled = !vm.isTv, onZoomed = { zoomed = it }) { showUi = !showUi }
             }
             }
         }
@@ -254,29 +266,49 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
 }
 
 @Composable
-private fun ZoomablePhoto(photo: Photo, enabled: Boolean, onTap: () -> Unit) {
+private fun ZoomablePhoto(photo: Photo, enabled: Boolean, onZoomed: (Boolean) -> Unit = {}, onTap: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(scale > 1f) { onZoomed(scale > 1f) }
+
     val gestures = if (!enabled) Modifier else Modifier
         .pointerInput(photo.id) {
             detectTapGestures(
-                onDoubleTap = {
+                onDoubleTap = { tap ->
                     if (scale > 1f) {
                         scale = 1f; offset = Offset.Zero
-                    } else scale = 2.5f
+                    } else {
+                        // amplía hacia donde has tocado
+                        scale = 2.5f
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        offset = clampOffset((center - tap) * 1.5f, 2.5f, size.width, size.height)
+                    }
                 },
                 onTap = { onTap() },
             )
         }
-        .then(
-            // Sólo capturamos gestos de zoom cuando ya está ampliada, para no bloquear el deslizar entre fotos
-            if (scale > 1f) Modifier.pointerInput(photo.id) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    offset = if (scale == 1f) Offset.Zero else offset + pan
+        .pointerInput(photo.id) {
+            // Pellizcar con dos dedos amplía siempre. Con un dedo y sin zoom no se toca nada,
+            // así se sigue pudiendo deslizar entre fotos; ya ampliada, un dedo mueve la foto.
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                do {
+                    val event = awaitPointerEvent()
+                    val fingers = event.changes.count { it.pressed }
+                    if (fingers >= 2 || scale > 1f) {
+                        val newScale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                        scale = newScale
+                        offset = if (newScale <= 1f) Offset.Zero
+                        else clampOffset(offset + event.calculatePan(), newScale, size.width, size.height)
+                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                    }
+                } while (event.changes.any { it.pressed })
+                if (scale < 1.05f) {
+                    scale = 1f
+                    offset = Offset.Zero
                 }
-            } else Modifier
-        )
+            }
+        }
 
     FullPhoto(
         photo,
@@ -346,3 +378,10 @@ private fun Modifier.pageTransition(pager: PagerState, page: Int, mode: ViewMode
                 drawRect(Color.Black.copy(alpha = abs(o) * 0.5f))
             }
         }
+
+/** Que la foto ampliada no se salga de la pantalla al moverla. */
+private fun clampOffset(o: Offset, scale: Float, width: Int, height: Int): Offset {
+    val maxX = width * (scale - 1f) / 2f
+    val maxY = height * (scale - 1f) / 2f
+    return Offset(o.x.coerceIn(-maxX, maxX), o.y.coerceIn(-maxY, maxY))
+}

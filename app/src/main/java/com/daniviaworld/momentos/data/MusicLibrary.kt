@@ -4,7 +4,10 @@ import android.content.Context
 import android.net.Uri
 import com.daniviaworld.momentos.R
 
-/** Música original de DANIVIA Momentos (compuesta para la app, libre de derechos). */
+/**
+ * Música que viene con la app: canciones reales de Tanner Helland (tannerhelland.com),
+ * con licencia Creative Commons Atribución 4.0 — libres de usar citando al autor (se cita en Familia).
+ */
 object MusicLibrary {
 
     data class Track(val key: String, val name: String, val emoji: String, val resId: Int) {
@@ -17,6 +20,8 @@ object MusicLibrary {
         Track("aventura", "Aventura", "🗺️", R.raw.musica_aventura),
         Track("fiesta", "Fiesta", "🎉", R.raw.musica_fiesta),
         Track("emotiva", "Emotiva", "💖", R.raw.musica_emotiva),
+        Track("hogar", "Hogar", "🏡", R.raw.musica_hogar),
+        Track("viaje", "De viaje", "✈️", R.raw.musica_viaje),
         Track("navidad", "Navidad", "🎄", R.raw.musica_navidad),
     )
 

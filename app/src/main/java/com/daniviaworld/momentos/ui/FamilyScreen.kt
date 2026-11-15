@@ -248,6 +248,12 @@ fun FamilyScreen(vm: MainViewModel) {
                         TextButton(onClick = { preview = "" }) { Text("⏹ Parar la escucha") }
                     }
 
+                    Text(
+                        "Música incluida: Tanner Helland (tannerhelland.com) · licencia CC BY 4.0",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
                     // Biblioteca musical de la familia: canciones de verdad subidas por el admin
                     Spacer(Modifier.height(14.dp))
                     Text("Música de la familia", fontWeight = FontWeight.Bold)
