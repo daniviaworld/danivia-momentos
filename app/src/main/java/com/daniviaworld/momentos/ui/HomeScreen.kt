@@ -146,7 +146,7 @@ fun HomeScreen(vm: MainViewModel) {
                             isTv = vm.isTv,
                             onOpen = open,
                             selectedIds = vm.selectedIds,
-                            onLongPress = if (canSelect) ({ p -> vm.toggleSelected(p) }) else null,
+                            onLongPress = if (canSelect) ({ p: Photo -> vm.toggleSelected(p) }) else null,
                         )
                         ViewMode.CAROUSEL -> CarouselView(photos, vm.isTv, open)
                         ViewMode.CINEMA -> CinemaView(

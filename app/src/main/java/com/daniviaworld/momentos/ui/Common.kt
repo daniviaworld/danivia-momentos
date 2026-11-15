@@ -104,7 +104,7 @@ fun Prefetch(urls: List<String>) {
 }
 
 /** Tarjeta que se agranda y se marca al tener el foco (mando de la TV) y se puede pulsar. */
-@OptIn(ExperimentalFoundationApi::class)
+@kotlin.OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FocusCard(
     onClick: () -> Unit,
