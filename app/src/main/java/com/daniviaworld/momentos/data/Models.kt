@@ -28,7 +28,16 @@ data class Photo(
     val voiceUrl: String = "",
     val voicePath: String = "",
     val voiceBy: String = "",
-)
+    /** Si se ha editado (marco, pegatinas): la foto tal como se subió, para poder volver a ella. */
+    val originalUrl: String = "",
+    val originalPath: String = "",
+    val originalThumbPath: String = "",
+    /** Marco y pegatinas de la última edición (para poder retocarlos). */
+    val editFrame: String = "",
+    val editStickers: String = "",
+) {
+    val isEdited: Boolean get() = originalUrl.isNotBlank()
+}
 
 data class Album(
     val id: String,

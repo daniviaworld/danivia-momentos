@@ -276,7 +276,6 @@ fun UploadScreen(vm: MainViewModel) {
 @Composable
 private fun FramePicker(uri: Uri, selected: String, onSelect: (String) -> Unit) {
     val context = LocalContext.current
-    var category by rememberSaveable { mutableStateOf("") }
     var base by remember(uri) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(uri) {
         base = withContext(Dispatchers.Default) {
@@ -287,6 +286,13 @@ private fun FramePicker(uri: Uri, selected: String, onSelect: (String) -> Unit) 
             }
         }
     }
+    FrameThumbPicker(base, selected, onSelect)
+}
+
+/** Miniaturas de [base] (una foto pequeña, ~240 px) con cada marco, por categorías. */
+@Composable
+fun FrameThumbPicker(base: Bitmap?, selected: String, onSelect: (String) -> Unit) {
+    var category by rememberSaveable { mutableStateOf("") }
     Row(
         Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),

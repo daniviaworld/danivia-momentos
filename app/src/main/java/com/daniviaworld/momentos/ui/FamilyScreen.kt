@@ -291,6 +291,57 @@ fun FamilyScreen(vm: MainViewModel) {
             }
         }
 
+        // Mi nombre (se puede cambiar; también cambia en las fotos que ya he subido)
+        if (!vm.isTv) {
+            item {
+                var editingName by remember { mutableStateOf(false) }
+                var newName by remember { mutableStateOf(vm.prefs.myName) }
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("👤 Tu nombre", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        if (!editingName) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    vm.myDisplayName.ifBlank { vm.prefs.myName.ifBlank { "Sin nombre" } },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(onClick = {
+                                    newName = vm.myDisplayName.ifBlank { vm.prefs.myName }
+                                    editingName = true
+                                }) { Text("Cambiar") }
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = { newName = it.take(40) },
+                                singleLine = true,
+                                label = { Text("Cómo te verá la familia") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                TextButton(onClick = { editingName = false }) { Text("Cancelar") }
+                                TextButton(
+                                    onClick = {
+                                        vm.renameMe(newName)
+                                        editingName = false
+                                    },
+                                    enabled = newName.isNotBlank() && !vm.busy,
+                                ) { Text("Guardar") }
+                            }
+                            Text(
+                                "También se cambia en las fotos y vídeos que ya has subido.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Text(
                 "Miembros (${members.size})",

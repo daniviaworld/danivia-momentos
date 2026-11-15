@@ -205,6 +205,18 @@ object AlbumVideoMaker {
             if (musicUri != null) compositionBuilder.experimentalSetForceAudioTrack(true)
             val composition = compositionBuilder.build()
 
+            runTransformer(context, composition, out, onProgress)
+        }
+    }
+
+    /** Ejecuta Transformer (en el hilo principal) y espera a que termine. Sirve también para cambiar la música de un vídeo. */
+    internal suspend fun runTransformer(
+        context: Context,
+        composition: Composition,
+        out: File,
+        onProgress: (Float) -> Unit,
+    ) = coroutineScope {
+        withContext(Dispatchers.Main) {
             val encoders = DefaultEncoderFactory.Builder(context)
                 .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(5_000_000).build())
                 .build()

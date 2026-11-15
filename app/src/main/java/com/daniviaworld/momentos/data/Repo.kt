@@ -196,6 +196,11 @@ object Repo {
             voiceUrl = getString("voiceUrl") ?: "",
             voicePath = getString("voicePath") ?: "",
             voiceBy = getString("voiceBy") ?: "",
+            originalUrl = getString("originalUrl") ?: "",
+            originalPath = getString("originalPath") ?: "",
+            originalThumbPath = getString("originalThumbPath") ?: "",
+            editFrame = getString("editFrame") ?: "",
+            editStickers = getString("editStickers") ?: "",
         )
     }
 
@@ -543,6 +548,118 @@ object Repo {
         ).await()
     }
 
+    // ---------- Editar lo ya subido ----------
+
+    private suspend fun deleteFiles(vararg paths: String) {
+        for (p in paths) {
+            if (p.isBlank()) continue
+            try {
+                storage.reference.child(p).delete().await()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
+     * Sustituye la imagen de una foto ya subida por la versión editada. Me gusta, comentarios,
+     * álbum… se conservan. La primera vez se guarda la original para poder volver a ella.
+     */
+    suspend fun replacePhotoImage(fid: String, photo: Photo, result: ImageProcessor.Result, frame: String, stickersJson: String) {
+        val me = ensureSignedIn()
+        val stamp = System.currentTimeMillis()
+        val path = "families/$fid/photos/${photo.id}_e$stamp.jpg"
+        val thumbPath = "families/$fid/photos/${photo.id}_e${stamp}_t.jpg"
+        val meta = StorageMetadata.Builder()
+            .setContentType("image/jpeg")
+            .setCustomMetadata("uploaderUid", me)
+            .build()
+        val fullRef = storage.reference.child(path)
+        fullRef.putBytes(result.full, meta).await()
+        val url = fullRef.downloadUrl.await().toString()
+        val thumbRef = storage.reference.child(thumbPath)
+        thumbRef.putBytes(result.thumb, meta).await()
+        val thumbUrl = thumbRef.downloadUrl.await().toString()
+
+        val update = mutableMapOf<String, Any>(
+            "url" to url,
+            "thumbUrl" to thumbUrl,
+            "storagePath" to path,
+            "thumbPath" to thumbPath,
+            "width" to result.width,
+            "height" to result.height,
+            "editedAt" to FieldValue.serverTimestamp(),
+            "editFrame" to frame,
+            "editStickers" to stickersJson,
+        )
+        if (!photo.isEdited) {
+            update["originalUrl"] = photo.url
+            update["originalPath"] = photo.storagePath
+            update["originalThumbPath"] = photo.thumbPath
+        }
+        photoRef(fid, photo.id).update(update).await()
+        // la edición anterior ya no hace falta (la original se guarda siempre)
+        if (photo.isEdited) deleteFiles(photo.storagePath, photo.thumbPath)
+    }
+
+    /** Quita el marco y las pegatinas: vuelve a la foto tal como se subió. */
+    suspend fun restoreOriginal(fid: String, photo: Photo) {
+        if (!photo.isEdited) return
+        val thumbUrl = if (photo.originalThumbPath.isNotBlank()) {
+            try {
+                storage.reference.child(photo.originalThumbPath).downloadUrl.await().toString()
+            } catch (_: Exception) {
+                photo.originalUrl
+            }
+        } else photo.originalUrl
+        photoRef(fid, photo.id).update(
+            mapOf(
+                "url" to photo.originalUrl,
+                "thumbUrl" to thumbUrl,
+                "storagePath" to photo.originalPath,
+                "thumbPath" to photo.originalThumbPath,
+                "editedAt" to FieldValue.serverTimestamp(),
+                "originalUrl" to FieldValue.delete(),
+                "originalPath" to FieldValue.delete(),
+                "originalThumbPath" to FieldValue.delete(),
+                "editFrame" to FieldValue.delete(),
+                "editStickers" to FieldValue.delete(),
+            )
+        ).await()
+        deleteFiles(photo.storagePath, photo.thumbPath)
+    }
+
+    /** Sustituye el vídeo (p. ej. con la música cambiada). La portada se queda igual. */
+    suspend fun replaceVideo(fid: String, photo: Photo, file: java.io.File) {
+        val me = ensureSignedIn()
+        val path = "families/$fid/photos/${photo.id}_v${System.currentTimeMillis()}.mp4"
+        val meta = StorageMetadata.Builder()
+            .setContentType("video/mp4")
+            .setCustomMetadata("uploaderUid", me)
+            .build()
+        val ref = storage.reference.child(path)
+        ref.putFile(Uri.fromFile(file), meta).await()
+        val url = ref.downloadUrl.await().toString()
+        photoRef(fid, photo.id).update(
+            mapOf("videoUrl" to url, "videoPath" to path, "editedAt" to FieldValue.serverTimestamp())
+        ).await()
+        deleteFiles(photo.videoPath)
+    }
+
+    /** Cambia mi nombre en la familia y en las fotos que he subido. */
+    suspend fun renameMe(fid: String, name: String) {
+        val me = ensureSignedIn()
+        val clean = name.trim().take(60)
+        if (clean.isEmpty()) throw IllegalArgumentException("Escribe un nombre")
+        families().document(fid).collection("members").document(me).update("name", clean).await()
+        val mine = families().document(fid).collection("photos").whereEqualTo("uploaderUid", me).get().await()
+        // en tandas de 400 (el límite de Firestore es 500 por lote)
+        mine.documents.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { batch.update(it.reference, "uploaderName", clean) }
+            batch.commit().await()
+        }
+    }
+
     suspend fun deletePhoto(fid: String, photo: Photo) {
         // Primero los comentarios, luego el documento (desaparece al momento para todos) y por último los archivos
         try {
@@ -551,7 +668,7 @@ object Repo {
         } catch (_: Exception) {
         }
         families().document(fid).collection("photos").document(photo.id).delete().await()
-        for (p in listOf(photo.storagePath, photo.thumbPath, photo.videoPath, photo.voicePath)) {
+        for (p in listOf(photo.storagePath, photo.thumbPath, photo.videoPath, photo.voicePath, photo.originalPath, photo.originalThumbPath).distinct()) {
             if (p.isBlank()) continue
             try {
                 storage.reference.child(p).delete().await()

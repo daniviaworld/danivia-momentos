@@ -34,6 +34,42 @@ object ImageProcessor {
         return Result(full, thumb, w, h)
     }
 
+    /**
+     * Edita una foto ya subida: pegatinas encima y luego el marco alrededor.
+     * [file] es la foto original descargada.
+     */
+    fun edit(file: java.io.File, stickers: List<Sticker>, frame: String): Result {
+        val source = decodeFile(file, MAX_SIDE)
+        val withStickers = Stickers.draw(source, stickers)
+        if (withStickers !== source) source.recycle()
+        val finalBmp = Frames.apply(withStickers, frame)
+        if (finalBmp !== withStickers) withStickers.recycle()
+        val full = compress(finalBmp, 90)
+        val thumbBmp = scaleToMax(finalBmp, THUMB_SIDE)
+        val thumb = compress(thumbBmp, 80)
+        val w = finalBmp.width
+        val h = finalBmp.height
+        if (thumbBmp !== finalBmp) thumbBmp.recycle()
+        finalBmp.recycle()
+        return Result(full, thumb, w, h)
+    }
+
+    /** Lee un archivo del móvil reducido a [maxSide]. */
+    fun decodeFile(file: java.io.File, maxSide: Int): Bitmap {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val longest = max(bounds.outWidth, bounds.outHeight)
+        if (longest <= 0) error("No se pudo leer la foto")
+        var sample = 1
+        while (longest / (sample * 2) >= maxSide) sample *= 2
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val bmp = BitmapFactory.decodeFile(file.absolutePath, opts) ?: error("No se pudo leer la foto")
+        return scaleToMax(bmp, maxSide, recycleSource = true)
+    }
+
     /** Versión pequeña para enseñar el "antes y después" en pantalla. */
     fun preview(context: Context, uri: Uri, enhance: Boolean, maxSide: Int = 900, frame: String = ""): Bitmap {
         val source = decode(context, uri, maxSide)

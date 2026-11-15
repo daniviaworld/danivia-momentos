@@ -20,6 +20,12 @@ import com.daniviaworld.momentos.data.ViewMode
 import com.daniviaworld.momentos.isTelevision
 import com.daniviaworld.momentos.share.Sharer
 import com.daniviaworld.momentos.media.AlbumVideoMaker
+import com.daniviaworld.momentos.media.VideoMusic
+import com.daniviaworld.momentos.image.ImageProcessor
+import com.daniviaworld.momentos.image.Sticker
+import com.daniviaworld.momentos.image.Stickers
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.daniviaworld.momentos.media.CollageMaker
 import com.daniviaworld.momentos.media.PhotoBookMaker
 import com.daniviaworld.momentos.data.UploadManager
@@ -370,6 +376,85 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun canDelete(photo: Photo): Boolean = photo.uploaderUid == myUid || isAdmin()
+
+    // ---------- Editar lo ya subido ----------
+
+    /** Pueden editar (marco, pegatinas, música del vídeo) el admin y quien la subió. */
+    fun canEdit(photo: Photo): Boolean = !isTv && (photo.uploaderUid == myUid || isAdmin())
+
+    /** Texto y avance (0..1) mientras se guarda una edición; null = no hay nada en marcha. */
+    var editWork by mutableStateOf<Pair<String, Float>?>(null)
+        private set
+
+    private fun runEdit(start: String, block: suspend () -> Unit) {
+        if (editWork != null) return
+        editWork = start to 0f
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                message = "No se pudo guardar: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                editWork = null
+            }
+        }
+    }
+
+    fun saveEditedPhoto(photo: Photo, stickers: List<Sticker>, frame: String, onDone: () -> Unit) =
+        runEdit("Preparando la foto…") {
+            val fid = prefs.familyId ?: return@runEdit
+            val app = getApplication<Application>()
+            val src = java.io.File(app.cacheDir, "editar_${photo.id}.jpg")
+            try {
+                withContext(Dispatchers.IO) { Sharer.download(photo.originalUrl.ifBlank { photo.url }, src) }
+                editWork = "Poniendo marco y pegatinas…" to 0.4f
+                val result = withContext(Dispatchers.Default) { ImageProcessor.edit(src, stickers, frame) }
+                editWork = "Guardando para toda la familia…" to 0.7f
+                Repo.replacePhotoImage(fid, photo, result, frame, Stickers.toJson(stickers))
+                message = "✅ Foto editada. La verá toda la familia."
+                onDone()
+            } finally {
+                src.delete()
+            }
+        }
+
+    fun restoreOriginal(photo: Photo, onDone: () -> Unit) = runEdit("Recuperando la original…") {
+        val fid = prefs.familyId ?: return@runEdit
+        Repo.restoreOriginal(fid, photo)
+        message = "↩️ Foto como estaba al subirla."
+        onDone()
+    }
+
+    fun changeVideoMusic(photo: Photo, musicKey: String, keepOriginal: Boolean, onDone: () -> Unit) =
+        runEdit("Preparando…") {
+            val fid = prefs.familyId ?: return@runEdit
+            val app = getApplication<Application>()
+            val out = VideoMusic.change(app, photo.videoUrl, musicUri(musicKey), keepOriginal) { text, p ->
+                editWork = text to p
+            }
+            try {
+                editWork = "Subiendo el vídeo…" to 0.97f
+                Repo.replaceVideo(fid, photo, out)
+                message = "🎵 Música del vídeo cambiada."
+                onDone()
+            } finally {
+                out.delete()
+            }
+        }
+
+    /** Mi nombre, para enseñarlo en pantalla (se actualiza al cambiarlo). */
+    var myDisplayName by mutableStateOf(prefs.myName)
+        private set
+
+    /** Cambiar mi nombre (también en las fotos que ya he subido). */
+    fun renameMe(name: String) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        val clean = name.trim()
+        Repo.renameMe(fid, clean)
+        prefs.myName = clean
+        myDisplayName = clean
+        message = "👤 Ahora te llamas «$clean»."
+    }
 
     fun deletePhoto(photo: Photo) = runBusy {
         val fid = prefs.familyId ?: return@runBusy

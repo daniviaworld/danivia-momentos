@@ -80,6 +80,7 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
     var activePlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var commentsOpen by remember { mutableStateOf(false) }
     var albumPickFor by remember { mutableStateOf<Photo?>(null) }
+    var editFor by remember { mutableStateOf<Photo?>(null) }
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
 
     LaunchedEffect(Unit) { try { focus.requestFocus() } catch (_: Exception) {} }
@@ -205,6 +206,11 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                         }
                     }
                 }
+                if (vm.canEdit(current) && (!current.isVideo || current.videoUrl.isNotBlank())) {
+                    IconButton(onClick = { editFor = current }) {
+                        Text(if (current.isVideo) "🎵" else "✏️", fontSize = 20.sp)
+                    }
+                }
                 if (!vm.isTv && vm.isAdmin()) {
                     IconButton(onClick = { albumPickFor = current }) {
                         Text("🗂️", fontSize = 20.sp)
@@ -238,6 +244,13 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+    }
+
+    editFor?.let { photo ->
+        // la versión al día de la foto (por si alguien la ha cambiado mientras)
+        val live = photos.firstOrNull { it.id == photo.id } ?: photo
+        if (live.isVideo) VideoMusicDialog(vm, live) { editFor = null }
+        else PhotoEditDialog(vm, live) { editFor = null }
     }
 
     albumPickFor?.let { photo ->
