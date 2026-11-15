@@ -30,7 +30,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -234,7 +236,18 @@ private fun Face(photo: Photo, shape: RoundedCornerShape, shade: Float, modifier
             .clip(shape)
             .border(2.dp, Color.White.copy(alpha = 0.25f), shape)
     ) {
-        PhotoImage(photo.url, Modifier.fillMaxSize())
+        // Fondo: la misma foto ampliada y difuminada, para rellenar la cara sin bandas negras
+        PhotoImage(
+            photo.thumbUrl,
+            Modifier
+                .fillMaxSize()
+                .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(30.dp) else Modifier)
+                .graphicsLayer { alpha = 0.6f },
+            ContentScale.Crop,
+        )
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+        // Delante: la foto ENTERA y centrada, sin recortar caras
+        PhotoImage(photo.url, Modifier.fillMaxSize(), ContentScale.Fit)
         VideoBadge(photo, big = true)
         // las caras que giran se oscurecen, como si les diera menos luz
         Box(
