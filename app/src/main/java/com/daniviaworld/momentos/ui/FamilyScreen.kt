@@ -1,6 +1,7 @@
 package com.daniviaworld.momentos.ui
 
 import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -140,6 +141,70 @@ fun FamilyScreen(vm: MainViewModel) {
                                 enabled = tvCode.length == 6 && !vm.busy,
                             ) { Text("Vincular") }
                         }
+                    }
+                }
+            }
+        }
+
+        // Salvapantallas (sobre todo para la tele)
+        item {
+            var help by remember { mutableStateOf(false) }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("🖼️ Salvapantallas con vuestras fotos", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (vm.isTv) "Cuando la tele esté encendida sin usarse, se verán las fotos de la familia."
+                        else "Mientras el móvil se carga, puede mostrar las fotos de la familia.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = {
+                        val opened = try {
+                            context.startActivity(
+                                Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                            true
+                        } catch (_: Exception) {
+                            false
+                        }
+                        help = true
+                        if (!opened) vm.message = "No se pudo abrir el ajuste; mira las instrucciones de abajo."
+                    }) { Text("Activar salvapantallas") }
+                    if (help) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "En el ajuste que se abre elige «DANIVIA Momentos» como salvapantallas. " +
+                                "Si no aparece (algunas Google TV lo ocultan): Ajustes → Sistema → Ahorro de energía / Salvapantallas. " +
+                                "Si tampoco está, se puede activar una vez desde un ordenador con el comando:\n" +
+                                "adb shell settings put secure screensaver_components com.daniviaworld.momentos/.dream.MomentosDream",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Música de fondo para diapositivas y cubo (con escucha previa)
+        item {
+            var preview by remember { mutableStateOf("") }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("🎵 Música de fondo", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Suena en Diapositivas y en el Cubo 3D. Cada álbum puede tener la suya.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    MusicChips(selected = vm.backgroundMusic, onSelect = {
+                        vm.setBackgroundMusicKey(it)
+                        preview = it
+                    })
+                    if (preview.isNotBlank()) {
+                        BackgroundMusic(preview)
+                        TextButton(onClick = { preview = "" }) { Text("⏹ Parar la escucha") }
                     }
                 }
             }

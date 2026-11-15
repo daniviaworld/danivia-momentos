@@ -79,6 +79,8 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
             )
         }
 
+        CreationDialogs(vm)
+
         vm.message?.let { msg ->
             AlertDialog(
                 onDismissRequest = { vm.message = null },

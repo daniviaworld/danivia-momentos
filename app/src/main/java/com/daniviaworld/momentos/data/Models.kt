@@ -22,6 +22,12 @@ data class Photo(
     val commentCount: Int = 0,
     /** Álbum al que pertenece (null = sin álbum). */
     val albumId: String? = null,
+    /** Reacciones con emoji: uid -> emoji (el ❤️ va aparte, en [likes]). */
+    val reactions: Map<String, String> = emptyMap(),
+    /** Nota de voz (opcional). */
+    val voiceUrl: String = "",
+    val voicePath: String = "",
+    val voiceBy: String = "",
 )
 
 data class Album(
@@ -29,6 +35,8 @@ data class Album(
     val name: String,
     val emoji: String,
     val createdAt: Long,
+    /** Clave de la música del álbum (ver MusicLibrary); vacío = ninguna. */
+    val music: String = "",
 ) {
     val title: String get() = if (emoji.isBlank()) name else "$emoji $name"
 }

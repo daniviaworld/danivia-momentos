@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.daniviaworld.momentos.data.Photo
 import com.daniviaworld.momentos.ui.KeepScreenOn
+import com.daniviaworld.momentos.ui.BackgroundMusic
 import com.daniviaworld.momentos.ui.PhotoImage
 import com.daniviaworld.momentos.ui.VideoPlayer
 import com.daniviaworld.momentos.ui.Prefetch
@@ -48,7 +49,7 @@ import kotlinx.coroutines.delay
 
 /** Pase de diapositivas con fundido y efecto "Ken Burns" (zoom y desplazamiento lentos). */
 @Composable
-fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
+fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicKey: String = "") {
     KeepScreenOn()
     var index by remember { mutableIntStateOf(0) }
     var interaction by remember { mutableIntStateOf(0) }
@@ -70,6 +71,8 @@ fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
         if (isTv) try { focus.requestFocus() } catch (_: Exception) {}
     }
     val safeIndex = index.mod(count.coerceAtLeast(1))
+    // la música se pausa mientras suena un vídeo
+    BackgroundMusic(musicKey, play = photos.getOrNull(safeIndex)?.isVideo != true)
     Prefetch(listOfNotNull(photos.getOrNull((safeIndex + 1).mod(count.coerceAtLeast(1)))?.url))
 
     Box(

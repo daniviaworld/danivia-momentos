@@ -26,7 +26,7 @@ object UploadManager {
     val progress: StateFlow<Progress> = _progress
     private val mutex = Mutex()
 
-    fun start(context: Context, fid: String, uris: List<Uri>, enhance: Boolean, myName: String, albumId: String? = null) {
+    fun start(context: Context, fid: String, uris: List<Uri>, enhance: Boolean, myName: String, albumId: String? = null, frame: String = "") {
         if (uris.isEmpty()) return
         val app = context.applicationContext
         val current = _progress.value
@@ -38,7 +38,7 @@ object UploadManager {
                 mutex.withLock {
                     _progress.value = _progress.value.copy(currentIsVideo = Repo.isVideo(app, uri))
                     val ok = try {
-                        Repo.uploadMedia(app, fid, uri, enhance, myName, albumId)
+                        Repo.uploadMedia(app, fid, uri, enhance, myName, albumId, frame)
                         true
                     } catch (e: Exception) {
                         _progress.value = _progress.value.copy(

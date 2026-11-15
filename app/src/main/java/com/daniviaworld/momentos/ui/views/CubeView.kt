@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.daniviaworld.momentos.data.Photo
 import com.daniviaworld.momentos.ui.KeepScreenOn
+import com.daniviaworld.momentos.ui.BackgroundMusic
 import com.daniviaworld.momentos.ui.Prefetch
 import com.daniviaworld.momentos.ui.PhotoImage
 import com.daniviaworld.momentos.ui.VideoBadge
@@ -65,8 +66,9 @@ import kotlin.math.sin
  * En la TV: ◀ ▶ giran el cubo, OK abre la foto, ▲ vuelve a los modos de vista.
  */
 @Composable
-fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
+fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicKey: String = "") {
     KeepScreenOn()
+    BackgroundMusic(musicKey)
     var index by remember { mutableIntStateOf(0) }
     var vertical by remember { mutableStateOf(false) }
     var forward by remember { mutableStateOf(true) }

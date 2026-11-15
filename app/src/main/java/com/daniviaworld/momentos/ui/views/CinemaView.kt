@@ -163,6 +163,19 @@ private fun Hero(heroPhotos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit
 
 private fun buildShelves(photos: List<Photo>, albums: List<Album>): List<Shelf> {
     val shelves = mutableListOf<Shelf>()
+    // 📅 Tal día como hoy (años anteriores)
+    val now = Calendar.getInstance()
+    val memories = photos.filter {
+        val c = Calendar.getInstance().apply { timeInMillis = it.createdAt }
+        c.get(Calendar.MONTH) == now.get(Calendar.MONTH) &&
+            c.get(Calendar.DAY_OF_MONTH) == now.get(Calendar.DAY_OF_MONTH) &&
+            c.get(Calendar.YEAR) < now.get(Calendar.YEAR)
+    }
+    if (memories.isNotEmpty()) {
+        val years = now.get(Calendar.YEAR) - Calendar.getInstance().apply { timeInMillis = memories.first().createdAt }.get(Calendar.YEAR)
+        shelves += Shelf(if (years == 1) "📅 Tal día como hoy, hace 1 año" else "📅 Tal día como hoy, hace $years años", memories)
+    }
+
     shelves += Shelf("Recién subidas", photos.take(20))
 
     // Una fila por álbum (los más nuevos primero)

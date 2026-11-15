@@ -57,6 +57,7 @@ import coil.compose.AsyncImage
 import com.daniviaworld.momentos.data.Repo
 import com.daniviaworld.momentos.data.UploadManager
 import com.daniviaworld.momentos.image.ImageProcessor
+import com.daniviaworld.momentos.image.Frames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -68,6 +69,7 @@ fun UploadScreen(vm: MainViewModel) {
     var enhance by rememberSaveable { mutableStateOf(vm.prefs.autoEnhance) }
     var launchedOnce by rememberSaveable { mutableStateOf(false) }
     val albums by vm.albums.collectAsState()
+    var frame by remember { mutableStateOf("") }
     // por defecto, el álbum que se está viendo en la pantalla principal
     var albumId by remember {
         mutableStateOf(vm.albumFilter.takeIf { it != ALL_ALBUMS && it != NO_ALBUM })
@@ -135,9 +137,26 @@ fun UploadScreen(vm: MainViewModel) {
                     })
                 }
                 val firstImage = remember(selected) { selected.firstOrNull { !Repo.isVideo(context, it) } }
-                if (enhance && firstImage != null) {
+                if ((enhance || frame.isNotBlank()) && firstImage != null) {
                     Spacer(Modifier.height(12.dp))
-                    BeforeAfter(firstImage)
+                    BeforeAfter(firstImage, enhance, frame)
+                }
+                if (firstImage != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Marco y pegatinas", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Frames.all.forEach { f ->
+                            FilterChip(
+                                selected = frame == f.key,
+                                onClick = { frame = f.key },
+                                label = { Text(f.label) },
+                            )
+                        }
+                    }
                 }
                 val videoCount = remember(selected) { selected.count { Repo.isVideo(context, it) } }
                 if (videoCount > 0) {
@@ -215,7 +234,7 @@ fun UploadScreen(vm: MainViewModel) {
             Button(
                 onClick = {
                     val fid = vm.prefs.familyId ?: return@Button
-                    UploadManager.start(context, fid, selected, enhance, vm.prefs.myName.ifBlank { "Alguien" }, albumId)
+                    UploadManager.start(context, fid, selected, enhance, vm.prefs.myName.ifBlank { "Alguien" }, albumId, frame)
                     vm.screen = Screen.Home
                 },
                 modifier = Modifier.weight(2f),
@@ -228,15 +247,15 @@ fun UploadScreen(vm: MainViewModel) {
 
 /** Enseña la primera foto antes y después de la mejora. */
 @Composable
-private fun BeforeAfter(uri: Uri) {
+private fun BeforeAfter(uri: Uri, enhance: Boolean, frame: String) {
     val context = LocalContext.current
     var before by remember(uri) { mutableStateOf<Bitmap?>(null) }
-    var after by remember(uri) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(uri) {
+    var after by remember(uri, enhance, frame) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(uri, enhance, frame) {
         withContext(Dispatchers.Default) {
             try {
-                before = ImageProcessor.preview(context, uri, enhance = false, maxSide = 700)
-                after = ImageProcessor.preview(context, uri, enhance = true, maxSide = 700)
+                if (before == null) before = ImageProcessor.preview(context, uri, enhance = false, maxSide = 700)
+                after = ImageProcessor.preview(context, uri, enhance = enhance, maxSide = 700, frame = frame)
             } catch (_: Exception) {
             }
         }
@@ -255,7 +274,7 @@ private fun BeforeAfter(uri: Uri) {
                     else Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = label,
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

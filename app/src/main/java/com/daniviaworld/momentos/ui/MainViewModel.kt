@@ -17,17 +17,34 @@ import com.daniviaworld.momentos.data.Repo
 import com.daniviaworld.momentos.data.ViewMode
 import com.daniviaworld.momentos.isTelevision
 import com.daniviaworld.momentos.share.Sharer
+import com.daniviaworld.momentos.media.AlbumVideoMaker
+import com.daniviaworld.momentos.media.CollageMaker
+import com.daniviaworld.momentos.media.PhotoBookMaker
+import com.daniviaworld.momentos.data.UploadManager
 import com.daniviaworld.momentos.update.Updater
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 sealed interface AppState {
     data object Loading : AppState
     data class Error(val message: String) : AppState
     data object Onboarding : AppState
     data class Ready(val familyId: String) : AppState
+}
+
+/** Estado de lo que la app está creando (vídeo resumen, collage, libro). */
+sealed interface Creation {
+    data class Working(val text: String, val progress: Float?) : Creation
+    data class Done(
+        val file: java.io.File,
+        val mime: String,
+        val kind: String,
+        val savedToDevice: Boolean,
+        val albumId: String?,
+    ) : Creation
 }
 
 sealed interface Screen {
@@ -81,6 +98,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val selecting: Boolean get() = selectedIds.isNotEmpty()
 
     private val listeners = mutableListOf<ListenerRegistration>()
+    private var tokenSaved = false
+
+    /** Guarda el token de avisos instantáneos de este móvil (si Firebase Messaging está disponible). */
+    private fun registerPush(fid: String, code: String) {
+        viewModelScope.launch {
+            try {
+                val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                Repo.saveFcmToken(fid, token, prefs.myName, "phone", code)
+            } catch (_: Exception) {
+                // sin avisos instantáneos: seguirá funcionando el aviso periódico
+            }
+        }
+    }
     private var pairingListener: ListenerRegistration? = null
 
     val myUid: String? get() = Repo.uid
@@ -173,7 +203,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val newest = list.firstOrNull()?.createdAt ?: 0L
             if (newest > prefs.lastNotifiedMillis) prefs.lastNotifiedMillis = newest
         }
-        listeners += Repo.listenFamily(fid) { _family.value = it }
+        listeners += Repo.listenFamily(fid) { fam ->
+            _family.value = fam
+            if (fam != null && fam.code.isNotBlank() && prefs.familyCode != fam.code) {
+                prefs.familyCode = fam.code
+            }
+            if (fam != null && !isTv && !tokenSaved) {
+                tokenSaved = true
+                registerPush(fid, fam.code)
+            }
+        }
         listeners += Repo.listenMembers(fid) { _members.value = it }
         listeners += Repo.listenAlbums(fid) { list ->
             _albums.value = list
@@ -203,6 +242,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _family.value = null
         _members.value = emptyList()
         _albums.value = emptyList()
+        tokenSaved = false
         albumFilter = ALL_ALBUMS
         selectedIds = emptySet()
         screen = Screen.Home
@@ -325,18 +365,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Crea un álbum y, si se indica, mete en él esas fotos. */
-    fun createAlbum(name: String, emoji: String, movePhotoIds: List<String> = emptyList()) = runBusy {
+    fun createAlbum(name: String, emoji: String, movePhotoIds: List<String> = emptyList(), music: String = "") = runBusy {
         val fid = prefs.familyId ?: return@runBusy
-        val id = Repo.createAlbum(fid, name, emoji)
+        val id = Repo.createAlbum(fid, name, emoji, music)
         if (movePhotoIds.isNotEmpty()) {
             Repo.movePhotos(fid, movePhotoIds, id)
             selectedIds = emptySet()
         }
     }
 
-    fun updateAlbum(album: Album, name: String, emoji: String) = runBusy {
+    fun updateAlbum(album: Album, name: String, emoji: String, music: String) = runBusy {
         val fid = prefs.familyId ?: return@runBusy
-        Repo.updateAlbum(fid, album.id, name, emoji)
+        Repo.updateAlbum(fid, album.id, name, emoji, music)
     }
 
     fun deleteAlbum(album: Album) = runBusy {
@@ -354,7 +394,120 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         message = if (photoIds.size == 1) "Movida a «$name»." else "${photoIds.size} movidas a «$name»."
     }
 
+    /** Música para diapositivas/cubo: la del álbum que se está viendo, o la general. */
+    fun musicKey(albums: List<Album>): String {
+        val album = albums.firstOrNull { it.id == albumFilter }
+        return album?.music?.takeIf { it.isNotBlank() } ?: prefs.backgroundMusic
+    }
+
+    var backgroundMusic by mutableStateOf(prefs.backgroundMusic)
+        private set
+
+    fun setBackgroundMusicKey(key: String) {
+        prefs.backgroundMusic = key
+        backgroundMusic = key
+    }
+
     fun albumOf(photo: Photo): Album? = photo.albumId?.let { id -> _albums.value.firstOrNull { it.id == id } }
+
+    // ---------- Creaciones: vídeo resumen, collage y libro ----------
+
+    var creation by mutableStateOf<Creation?>(null)
+        private set
+    private var creationJob: kotlinx.coroutines.Job? = null
+
+    private fun albumPhotos(album: Album?): List<Photo> =
+        if (album == null) _photos.value.filter { it.albumId == null }
+        else _photos.value.filter { it.albumId == album.id }
+
+    fun makeVideo(album: Album?, musicUri: android.net.Uri?, secondsPerPhoto: Int) {
+        val title = album?.title ?: (_family.value?.name ?: "Momentos")
+        runCreation {
+            creation = Creation.Working("Preparando…", 0f)
+            val file = AlbumVideoMaker.make(
+                getApplication<Application>(),
+                albumPhotos(album),
+                AlbumVideoMaker.Options(title = title, musicUri = musicUri, secondsPerPhoto = secondsPerPhoto),
+            ) { text, p -> creation = Creation.Working(text, p) }
+            val saved = Sharer.saveToDevice(getApplication<Application>(), file, "video/mp4", "video")
+            Creation.Done(file, "video/mp4", "video", saved, album?.id)
+        }
+    }
+
+    fun makeCollage(album: Album?) {
+        val title = album?.title ?: (_family.value?.name ?: "Momentos")
+        runCreation {
+            creation = Creation.Working("Montando el collage…", null)
+            val file = CollageMaker.make(getApplication<Application>(), albumPhotos(album), title)
+            val saved = Sharer.saveToDevice(getApplication<Application>(), file, "image/jpeg", "image")
+            Creation.Done(file, "image/jpeg", "collage", saved, album?.id)
+        }
+    }
+
+    fun makeBook(album: Album?) {
+        val title = album?.title ?: (_family.value?.name ?: "Momentos")
+        runCreation {
+            creation = Creation.Working("Creando el libro de fotos…", 0f)
+            val file = PhotoBookMaker.make(getApplication<Application>(), albumPhotos(album), title) { p ->
+                creation = Creation.Working("Creando el libro de fotos…", p)
+            }
+            val saved = Sharer.saveToDevice(getApplication<Application>(), file, "application/pdf", "download")
+            Creation.Done(file, "application/pdf", "book", saved, album?.id)
+        }
+    }
+
+    private fun runCreation(block: suspend () -> Creation.Done) {
+        if (creation is Creation.Working) return
+        creationJob = viewModelScope.launch {
+            try {
+                creation = block()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                creation = null
+            } catch (e: IllegalArgumentException) {
+                creation = null
+                message = e.message
+            } catch (e: Exception) {
+                creation = null
+                message = "No se pudo crear: ${e.message ?: e.javaClass.simpleName}"
+            }
+        }
+    }
+
+    fun cancelCreation() {
+        creationJob?.cancel()
+        creation = null
+    }
+
+    fun closeCreation() {
+        creation = null
+    }
+
+    fun shareCreation() {
+        val done = creation as? Creation.Done ?: return
+        val title = when (done.kind) {
+            "video" -> "Compartir vídeo"
+            "collage" -> "Compartir collage"
+            else -> "Compartir libro"
+        }
+        Sharer.shareFile(getApplication<Application>(), done.file, done.mime, title)
+    }
+
+    /** Sube el vídeo o el collage creado al álbum, para verlo en la tele. */
+    fun addCreationToAlbum() {
+        val done = creation as? Creation.Done ?: return
+        val fid = prefs.familyId ?: return
+        UploadManager.start(
+            getApplication<Application>(),
+            fid,
+            listOf(android.net.Uri.fromFile(done.file)),
+            enhance = false,
+            myName = prefs.myName.ifBlank { "Alguien" },
+            albumId = done.albumId,
+        )
+        creation = null
+        screen = Screen.Home
+        message = "Subiendo al álbum… lo verás en unos momentos (también en la tele)."
+    }
 
     // ---------- Compartir ----------
 
@@ -377,6 +530,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Me gusta y comentarios ----------
+
+    // ---------- Notas de voz ----------
+
+    fun canEditVoice(photo: Photo): Boolean = photo.uploaderUid == myUid || isAdmin()
+
+    fun uploadVoice(photo: Photo, file: java.io.File) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        try {
+            Repo.uploadVoice(fid, photo, file, prefs.myName.ifBlank { "Alguien" })
+        } finally {
+            file.delete()
+        }
+    }
+
+    fun deleteVoice(photo: Photo) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        Repo.deleteVoice(fid, photo)
+    }
+
+    fun myReaction(photo: Photo): String? = myUid?.let { photo.reactions[it] }
+
+    fun setReaction(photo: Photo, emoji: String?) {
+        val fid = prefs.familyId ?: return
+        viewModelScope.launch {
+            try {
+                Repo.setReaction(fid, photo, emoji, prefs.myName.ifBlank { "Alguien" })
+            } catch (e: Exception) {
+                message = "No se pudo guardar la reacción: ${e.message}"
+            }
+        }
+    }
 
     fun isLikedByMe(photo: Photo): Boolean = myUid?.let { it in photo.likes } == true
 

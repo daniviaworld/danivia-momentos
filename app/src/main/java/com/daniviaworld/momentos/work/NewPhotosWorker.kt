@@ -52,7 +52,15 @@ class NewPhotosWorker(context: Context, params: WorkerParameters) : CoroutineWor
             prefs.lastActivityMillis = System.currentTimeMillis()
             return Result.success()
         }
-        checkActivity(fid, me, prefs)
+        // con avisos instantáneos activos, estos ya llegan al momento
+        if (!prefs.pushActive) checkActivity(fid, me, prefs)
+        checkMemories(fid, prefs)
+        // widget "Foto del día": cambia una vez al día
+        val day = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        if (prefs.lastWidgetDay != day && com.daniviaworld.momentos.widget.PhotoWidget.hasWidgets(applicationContext)) {
+            prefs.lastWidgetDay = day
+            com.daniviaworld.momentos.widget.PhotoWidget.refresh(applicationContext)
+        }
         return try {
             val snap = FirebaseFirestore.getInstance()
                 .collection("families").document(fid).collection("photos")
@@ -63,13 +71,48 @@ class NewPhotosWorker(context: Context, params: WorkerParameters) : CoroutineWor
             val newest = snap.documents.firstOrNull()?.getTimestamp("createdAt")?.toDate()?.time
             if (newest != null && newest > since) prefs.lastNotifiedMillis = newest
             val fromOthers = snap.documents.filter { it.getString("uploaderUid") != me }
-            if (fromOthers.isNotEmpty()) {
+            if (fromOthers.isNotEmpty() && !prefs.pushActive) {
                 val names = fromOthers.mapNotNull { it.getString("uploaderName") }.distinct()
                 notify(fromOthers.size, names)
             }
             Result.success()
         } catch (e: Exception) {
             Result.retry()
+        }
+    }
+
+    /** Una vez al día: "📅 Tal día como hoy" si hay fotos de este mismo día en años anteriores. */
+    private suspend fun checkMemories(fid: String, prefs: Prefs) {
+        val now = java.util.Calendar.getInstance()
+        val today = now.get(java.util.Calendar.YEAR) * 1000 + now.get(java.util.Calendar.DAY_OF_YEAR)
+        if (prefs.lastMemoryDay == today || now.get(java.util.Calendar.HOUR_OF_DAY) < 10) return
+        prefs.lastMemoryDay = today
+        try {
+            val photos = FirebaseFirestore.getInstance().collection("families").document(fid).collection("photos")
+            var total = 0
+            var oldestYears = 0
+            for (yearsAgo in 1..10) {
+                val start = (now.clone() as java.util.Calendar).apply {
+                    add(java.util.Calendar.YEAR, -yearsAgo)
+                    set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                }
+                val end = (start.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
+                val n = photos
+                    .whereGreaterThanOrEqualTo("createdAt", Timestamp(start.time))
+                    .whereLessThan("createdAt", Timestamp(end.time))
+                    .limit(100)
+                    .get().await().size()
+                if (n > 0) {
+                    total += n
+                    oldestYears = yearsAgo
+                }
+            }
+            if (total > 0) {
+                val ago = if (oldestYears == 1) "hace 1 año" else "hace $oldestYears años"
+                show(1003, "📅 Tal día como hoy, $ago: $total recuerdos. ¡Ábrelos en Estilo cine!")
+            }
+        } catch (_: Exception) {
         }
     }
 
@@ -87,20 +130,24 @@ class NewPhotosWorker(context: Context, params: WorkerParameters) : CoroutineWor
             prefs.lastActivityMillis = if (newest != null && newest > since) newest else since
             val mine = snap.documents.filter { it.getString("toUid") == me && it.getString("fromUid") != me }
             if (mine.isEmpty()) return
-            val likes = mine.filter { it.getString("type") == "like" }
+            val likes = mine.filter { it.getString("type") == "like" || it.getString("type") == "reaction" }
             val comments = mine.filter { it.getString("type") == "comment" }
             val text = when {
                 mine.size == 1 && likes.size == 1 -> {
                     val d = likes[0]
                     val what = if (d.getBoolean("isVideo") == true) "tu vídeo" else "tu foto"
-                    "A ${d.getString("fromName") ?: "alguien"} le ha gustado $what ❤️"
+                    if (d.getString("type") == "reaction") {
+                        "${d.getString("fromName") ?: "Alguien"} ha reaccionado ${d.getString("text") ?: ""} a $what"
+                    } else {
+                        "A ${d.getString("fromName") ?: "alguien"} le ha gustado $what ❤️"
+                    }
                 }
                 mine.size == 1 && comments.size == 1 -> {
                     val d = comments[0]
                     "${d.getString("fromName") ?: "Alguien"} ha comentado: «${d.getString("text") ?: ""}»"
                 }
                 else -> buildString {
-                    if (likes.isNotEmpty()) append("${likes.size} me gusta ❤️")
+                    if (likes.isNotEmpty()) append("${likes.size} me gusta y reacciones ❤️")
                     if (likes.isNotEmpty() && comments.isNotEmpty()) append(" y ")
                     if (comments.isNotEmpty()) append("${comments.size} comentario${if (comments.size > 1) "s" else ""} 💬")
                     append(" en tus fotos")

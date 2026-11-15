@@ -56,6 +56,9 @@ import com.daniviaworld.momentos.data.Photo
 
 private val Heart = Color(0xFFFF4D6D)
 
+/** Reacciones disponibles (el ❤️ va aparte como "me gusta"). */
+val REACTIONS = listOf("😂", "😍", "😮", "👏", "🥰")
+
 /** "Les gusta a Laura y Mamá" a partir de la lista de nombres. */
 fun likesText(names: List<String>): String = when (names.size) {
     0 -> ""
@@ -78,6 +81,12 @@ fun SocialBar(
 ) {
     val liked = vm.isLikedByMe(photo)
     val names = vm.likerNames(photo)
+    var picker by remember(photo.id) { mutableStateOf(false) }
+    val mine = vm.myReaction(photo)
+    val summary = REACTIONS.mapNotNull { e ->
+        val n = photo.reactions.values.count { it == e }
+        if (n > 0) e to n else null
+    }
     val pop by animateFloatAsState(
         targetValue = if (liked) 1.15f else 1f,
         animationSpec = spring(dampingRatio = 0.35f, stiffness = 400f),
@@ -104,6 +113,50 @@ fun SocialBar(
             }
             if (comments.isNotEmpty()) Spacer(Modifier.size(6.dp))
         }
+        // Nota de voz
+        VoiceNoteRow(vm, photo)
+
+        // Reacciones: resumen (😂 2  😍 1) y, en el móvil, selector
+        if (summary.isNotEmpty()) {
+            Row(Modifier.padding(start = if (vm.isTv) 0.dp else 12.dp, bottom = 4.dp)) {
+                summary.forEach { (e, n) ->
+                    Text(
+                        "$e $n",
+                        color = Color.White,
+                        fontSize = if (vm.isTv) 20.sp else 15.sp,
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0x55FFFFFF))
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                    )
+                }
+            }
+        }
+        if (!vm.isTv && picker) {
+            Row(
+                Modifier
+                    .padding(start = 8.dp, bottom = 6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xEE1D2036))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                REACTIONS.forEach { e ->
+                    Text(
+                        e,
+                        fontSize = 28.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (mine == e) Orange.copy(alpha = 0.45f) else Color.Transparent)
+                            .clickable {
+                                vm.setReaction(photo, if (mine == e) null else e)
+                                picker = false
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (vm.isTv) {
                 Icon(
@@ -122,6 +175,10 @@ fun SocialBar(
                             .size(30.dp)
                             .graphicsLayer { scaleX = pop; scaleY = pop },
                     )
+                }
+                // botón de reacción: muestra la mía o una carita
+                IconButton(onClick = { picker = !picker }) {
+                    Text(mine ?: "😊", fontSize = 22.sp)
                 }
             }
             Text(

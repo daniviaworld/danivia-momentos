@@ -17,6 +17,30 @@ class Prefs(context: Context) {
         get() = sp.getString("viewMode", null)
         set(value) = sp.edit().putString("viewMode", value).apply()
 
+    /** Música de fondo en diapositivas y cubo ("" = sin música). */
+    var backgroundMusic: String
+        get() = sp.getString("bgMusic", "") ?: ""
+        set(value) = sp.edit().putString("bgMusic", value).apply()
+
+    /** Código de la familia (para guardar el token de avisos). */
+    var familyCode: String
+        get() = sp.getString("familyCode", "") ?: ""
+        set(value) = sp.edit().putString("familyCode", value).apply()
+
+    var lastWidgetDay: Int
+        get() = sp.getInt("lastWidgetDay", 0)
+        set(value) = sp.edit().putInt("lastWidgetDay", value).apply()
+
+    /** Último día (yyyyDDD) en que se avisó de "Tal día como hoy". */
+    var lastMemoryDay: Int
+        get() = sp.getInt("lastMemoryDay", 0)
+        set(value) = sp.edit().putInt("lastMemoryDay", value).apply()
+
+    /** true cuando llegan avisos instantáneos (FCM): el aviso periódico deja de duplicarlos. */
+    var pushActive: Boolean
+        get() = sp.getBoolean("pushActive", false)
+        set(value) = sp.edit().putBoolean("pushActive", value).apply()
+
     var autoEnhance: Boolean
         get() = sp.getBoolean("autoEnhance", true)
         set(value) = sp.edit().putBoolean("autoEnhance", value).apply()

@@ -168,8 +168,8 @@ fun HomeScreen(vm: MainViewModel) {
                             open,
                             albums = if (vm.albumFilter == ALL_ALBUMS) albums else emptyList(),
                         )
-                        ViewMode.CUBE -> CubeView(photos, vm.isTv, open)
-                        ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open)
+                        ViewMode.CUBE -> CubeView(photos, vm.isTv, open, musicKey = vm.musicKey(albums))
+                        ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open, musicKey = vm.musicKey(albums))
                     }
                 }
             }

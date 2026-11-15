@@ -190,7 +190,66 @@ object Repo {
             likes = (get("likes") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             commentCount = (getLong("commentCount") ?: 0L).toInt().coerceAtLeast(0),
             albumId = getString("albumId")?.takeIf { it.isNotBlank() },
+            reactions = (get("reactions") as? Map<*, *>)
+                ?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }
+                ?.toMap() ?: emptyMap(),
+            voiceUrl = getString("voiceUrl") ?: "",
+            voicePath = getString("voicePath") ?: "",
+            voiceBy = getString("voiceBy") ?: "",
         )
+    }
+
+    // ---------- Reacciones ----------
+
+    /** Pone (o quita, con null) mi reacción con emoji. */
+    suspend fun setReaction(fid: String, photo: Photo, emoji: String?, myName: String) {
+        val me = ensureSignedIn()
+        photoRef(fid, photo.id).update("reactions.$me", emoji ?: FieldValue.delete()).await()
+        if (emoji != null && photo.uploaderUid != me) addActivity(fid, "reaction", photo, myName, emoji)
+    }
+
+    // ---------- Notas de voz ----------
+
+    suspend fun uploadVoice(fid: String, photo: Photo, file: java.io.File, myName: String) {
+        val me = ensureSignedIn()
+        val path = "families/$fid/photos/${photo.id}_voz.m4a"
+        val meta = StorageMetadata.Builder()
+            .setContentType("audio/mp4")
+            .setCustomMetadata("uploaderUid", me)
+            .build()
+        val ref = storage.reference.child(path)
+        ref.putFile(Uri.fromFile(file), meta).await()
+        val url = ref.downloadUrl.await().toString()
+        photoRef(fid, photo.id).update(
+            mapOf("voiceUrl" to url, "voicePath" to path, "voiceBy" to myName)
+        ).await()
+    }
+
+    suspend fun deleteVoice(fid: String, photo: Photo) {
+        photoRef(fid, photo.id).update(
+            mapOf(
+                "voiceUrl" to FieldValue.delete(),
+                "voicePath" to FieldValue.delete(),
+                "voiceBy" to FieldValue.delete(),
+            )
+        ).await()
+        if (photo.voicePath.isNotBlank()) {
+            try {
+                storage.reference.child(photo.voicePath).delete().await()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    // ---------- Avisos al instante ----------
+
+    /** Guarda el token de notificaciones de este aparato en mi ficha de miembro. */
+    suspend fun saveFcmToken(fid: String, token: String, myName: String, device: String, familyCode: String) {
+        val me = ensureSignedIn()
+        families().document(fid).collection("members").document(me).set(
+            mapOf("fcmToken" to token, "name" to myName, "device" to device, "code" to familyCode),
+            com.google.firebase.firestore.SetOptions.merge(),
+        ).await()
     }
 
     // ---------- Álbumes ----------
@@ -205,26 +264,29 @@ object Repo {
                     id = it.id,
                     name = it.getString("name") ?: "Álbum",
                     emoji = it.getString("emoji") ?: "",
+                    music = it.getString("music") ?: "",
                     createdAt = it.getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
                         ?.toDate()?.time ?: System.currentTimeMillis(),
                 )
             })
         }
 
-    suspend fun createAlbum(fid: String, name: String, emoji: String): String {
+    suspend fun createAlbum(fid: String, name: String, emoji: String, music: String = ""): String {
         val ref = albums(fid).document()
         ref.set(
             mapOf(
                 "name" to name.trim().take(40),
                 "emoji" to emoji,
+                "music" to music,
                 "createdAt" to FieldValue.serverTimestamp(),
             )
         ).await()
         return ref.id
     }
 
-    suspend fun updateAlbum(fid: String, albumId: String, name: String, emoji: String) {
-        albums(fid).document(albumId).update(mapOf("name" to name.trim().take(40), "emoji" to emoji)).await()
+    suspend fun updateAlbum(fid: String, albumId: String, name: String, emoji: String, music: String) {
+        albums(fid).document(albumId)
+            .update(mapOf("name" to name.trim().take(40), "emoji" to emoji, "music" to music)).await()
     }
 
     /** Borra el álbum; sus fotos pasan a "Sin álbum" (no se borra ninguna foto). */
@@ -323,12 +385,15 @@ object Repo {
         if (albumId.isNullOrBlank()) emptyMap() else mapOf("albumId" to albumId)
 
     fun isVideo(context: Context, uri: Uri): Boolean =
-        context.contentResolver.getType(uri)?.startsWith("video/") == true
+        context.contentResolver.getType(uri)?.startsWith("video/") == true ||
+            (uri.scheme == "file" && uri.path?.endsWith(".mp4", ignoreCase = true) == true)
 
     /** Sube una foto o un vídeo (según lo que sea). */
-    suspend fun uploadMedia(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
+    suspend fun uploadMedia(
+        context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?, frame: String = "",
+    ) {
         if (isVideo(context, uri)) uploadVideo(context, fid, uri, enhance, myName, albumId)
-        else uploadPhoto(context, fid, uri, enhance, myName, albumId)
+        else uploadPhoto(context, fid, uri, enhance, myName, albumId, frame)
     }
 
     private suspend fun uploadVideo(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
@@ -381,10 +446,10 @@ object Repo {
         }
     }
 
-    private suspend fun uploadPhoto(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
+    private suspend fun uploadPhoto(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?, frame: String) {
         val me = ensureSignedIn()
         val processed = withContext(Dispatchers.Default) {
-            ImageProcessor.process(context, uri, enhance)
+            ImageProcessor.process(context, uri, enhance, frame)
         }
         val docRef = families().document(fid).collection("photos").document()
         val path = "families/$fid/photos/${docRef.id}.jpg"
@@ -427,7 +492,7 @@ object Repo {
         } catch (_: Exception) {
         }
         families().document(fid).collection("photos").document(photo.id).delete().await()
-        for (p in listOf(photo.storagePath, photo.thumbPath, photo.videoPath)) {
+        for (p in listOf(photo.storagePath, photo.thumbPath, photo.videoPath, photo.voicePath)) {
             if (p.isBlank()) continue
             try {
                 storage.reference.child(p).delete().await()

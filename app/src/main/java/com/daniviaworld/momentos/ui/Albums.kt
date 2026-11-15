@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -59,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daniviaworld.momentos.data.Album
+import com.daniviaworld.momentos.data.MusicLibrary
 import com.daniviaworld.momentos.data.Photo
 
 val albumEmojis = listOf(
@@ -75,6 +78,7 @@ fun AlbumsScreen(vm: MainViewModel) {
     var editing by remember { mutableStateOf<Album?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Album?>(null) }
+    var videoFor by remember { mutableStateOf<AlbumCardData?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -174,13 +178,41 @@ fun AlbumsScreen(vm: MainViewModel) {
                                 )
                             }
                         }
-                        if (admin && !vm.isTv && card.album != null) {
-                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                                IconButton(onClick = { editing = card.album }) {
-                                    Icon(Icons.Filled.Edit, contentDescription = "Cambiar nombre")
-                                }
-                                IconButton(onClick = { deleting = card.album }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Borrar álbum")
+                        if (!vm.isTv) {
+                            // Acciones del álbum: crear vídeo, collage, libro y (admin) editar/borrar
+                            var menu by remember { mutableStateOf(false) }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                TextButton(onClick = { videoFor = card }) { Text("🎬 Vídeo") }
+                                Box {
+                                    IconButton(onClick = { menu = true }) { Text("⋯", fontSize = 22.sp) }
+                                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text("🎬  Crear vídeo con música") },
+                                            onClick = { menu = false; videoFor = card },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("🧩  Hacer un collage") },
+                                            onClick = { menu = false; vm.makeCollage(card.album) },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("📖  Libro de fotos (PDF)") },
+                                            onClick = { menu = false; vm.makeBook(card.album) },
+                                        )
+                                        if (admin && card.album != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("✏️  Editar álbum") },
+                                                onClick = { menu = false; editing = card.album },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("🗑  Borrar álbum") },
+                                                onClick = { menu = false; deleting = card.album },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -190,14 +222,26 @@ fun AlbumsScreen(vm: MainViewModel) {
         }
     }
 
+    videoFor?.let { card ->
+        CreateVideoDialog(
+            album = card.album,
+            photoCount = card.photos.count { !it.isVideo },
+            onDismiss = { videoFor = null },
+            onCreate = { music, seconds ->
+                videoFor = null
+                vm.makeVideo(card.album, music, seconds)
+            },
+        )
+    }
+
     if (creating) {
         AlbumEditDialog(
             title = "Nuevo álbum",
             initialName = "",
             initialEmoji = "📸",
             onDismiss = { creating = false },
-            onSave = { name, emoji ->
-                vm.createAlbum(name, emoji)
+            onSave = { name, emoji, music ->
+                vm.createAlbum(name, emoji, music = music)
                 creating = false
             },
         )
@@ -207,9 +251,10 @@ fun AlbumsScreen(vm: MainViewModel) {
             title = "Editar álbum",
             initialName = album.name,
             initialEmoji = album.emoji,
+            initialMusic = album.music,
             onDismiss = { editing = null },
-            onSave = { name, emoji ->
-                vm.updateAlbum(album, name, emoji)
+            onSave = { name, emoji, music ->
+                vm.updateAlbum(album, name, emoji, music)
                 editing = null
             },
         )
@@ -239,10 +284,12 @@ fun AlbumEditDialog(
     initialName: String,
     initialEmoji: String,
     onDismiss: () -> Unit,
-    onSave: (name: String, emoji: String) -> Unit,
+    initialMusic: String = "",
+    onSave: (name: String, emoji: String, music: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var emoji by remember { mutableStateOf(initialEmoji.ifBlank { "📸" }) }
+    var music by remember { mutableStateOf(initialMusic) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -276,10 +323,14 @@ fun AlbumEditDialog(
                         ) { Text(e, fontSize = 22.sp) }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                Text("Música del álbum", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(6.dp))
+                MusicChips(selected = music, onSelect = { music = it })
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(name, emoji) }, enabled = name.isNotBlank()) { Text("Guardar") }
+            Button(onClick = { onSave(name, emoji, music) }, enabled = name.isNotBlank()) { Text("Guardar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
@@ -299,14 +350,26 @@ fun AlbumPickerDialog(
     val albums by vm.albums.collectAsState()
     var creating by remember { mutableStateOf(false) }
 
+    videoFor?.let { card ->
+        CreateVideoDialog(
+            album = card.album,
+            photoCount = card.photos.count { !it.isVideo },
+            onDismiss = { videoFor = null },
+            onCreate = { music, seconds ->
+                videoFor = null
+                vm.makeVideo(card.album, music, seconds)
+            },
+        )
+    }
+
     if (creating) {
         AlbumEditDialog(
             title = "Nuevo álbum",
             initialName = "",
             initialEmoji = "📸",
             onDismiss = { creating = false },
-            onSave = { name, emoji ->
-                vm.createAlbum(name, emoji, photoIds)
+            onSave = { name, emoji, music ->
+                vm.createAlbum(name, emoji, photoIds, music)
                 creating = false
                 onDismiss()
             },
@@ -386,4 +449,19 @@ fun AlbumFilterRow(vm: MainViewModel, albums: List<Album>, photos: List<Photo>) 
         }
     }
     Spacer(Modifier.height(6.dp))
+}
+
+/** Chips para elegir una pista de música ("" = sin música). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MusicChips(selected: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        FilterChip(selected = selected.isBlank(), onClick = { onSelect("") }, label = { Text("🔇 Sin música") })
+        MusicLibrary.tracks.forEach { t ->
+            FilterChip(selected = selected == t.key, onClick = { onSelect(t.key) }, label = { Text(t.label) })
+        }
+    }
 }

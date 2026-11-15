@@ -18,10 +18,12 @@ object ImageProcessor {
     private const val MAX_SIDE = 2560
     private const val THUMB_SIDE = 520
 
-    fun process(context: Context, uri: Uri, enhance: Boolean): Result {
+    fun process(context: Context, uri: Uri, enhance: Boolean, frame: String = ""): Result {
         val source = decode(context, uri, MAX_SIDE)
-        val finalBmp = if (enhance) Enhancer.enhance(source) else source
-        if (finalBmp !== source) source.recycle()
+        val improved = if (enhance) Enhancer.enhance(source) else source
+        if (improved !== source) source.recycle()
+        val finalBmp = Frames.apply(improved, frame)
+        if (finalBmp !== improved) improved.recycle()
         val full = compress(finalBmp, 88)
         val thumbBmp = scaleToMax(finalBmp, THUMB_SIDE)
         val thumb = compress(thumbBmp, 80)
@@ -33,11 +35,12 @@ object ImageProcessor {
     }
 
     /** Versión pequeña para enseñar el "antes y después" en pantalla. */
-    fun preview(context: Context, uri: Uri, enhance: Boolean, maxSide: Int = 900): Bitmap {
+    fun preview(context: Context, uri: Uri, enhance: Boolean, maxSide: Int = 900, frame: String = ""): Bitmap {
         val source = decode(context, uri, maxSide)
-        if (!enhance) return source
-        val out = Enhancer.enhance(source)
-        if (out !== source) source.recycle()
+        val improved = if (enhance) Enhancer.enhance(source) else source
+        if (improved !== source) source.recycle()
+        val out = Frames.apply(improved, frame)
+        if (out !== improved) improved.recycle()
         return out
     }
 
