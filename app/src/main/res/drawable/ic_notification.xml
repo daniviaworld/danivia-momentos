@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- marco -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M3,4h18a1,1 0,0 1,1 1v14a1,1 0,0 1,-1 1H3a1,1 0,0 1,-1 -1V5a1,1 0,0 1,1 -1z M4,6v12h16V6z" />
+    <!-- montañas -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,18 L9,11 L13,16 L15.5,13 L20,18 Z" />
+    <!-- sol -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16,9.5m-1.5,0a1.5,1.5 0,1 0,3 0a1.5,1.5 0,1 0,-3 0" />
+</vector>

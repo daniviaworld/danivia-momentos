@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// DANIVIA Momentos — reglas de Storage
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isMember(fid) {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/families/$(fid)/members/$(request.auth.uid));
+    }
+    function isAdmin(fid) {
+      return request.auth != null &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/families/$(fid)).data.admins;
+    }
+
+    match /families/{fid}/photos/{file} {
+      allow read: if isMember(fid);
+      // Fotos hasta 15 MB y vídeos hasta 300 MB
+      allow create: if isMember(fid)
+        && request.resource.metadata.uploaderUid == request.auth.uid
+        && (
+          (request.resource.contentType.matches('image/.*') && request.resource.size < 15 * 1024 * 1024)
+          || (request.resource.contentType.matches('video/.*') && request.resource.size < 300 * 1024 * 1024)
+        );
+      allow update: if false;
+      allow delete: if isMember(fid)
+        && (resource.metadata.uploaderUid == request.auth.uid || isAdmin(fid));
+    }
+  }
+}

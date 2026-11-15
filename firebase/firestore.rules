@@ -1,0 +1,123 @@
+rules_version = '2';
+
+// DANIVIA Momentos — reglas de Firestore
+// Sólo los miembros de una familia pueden ver o subir sus fotos.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function familyPath(fid) {
+      return /databases/$(database)/documents/families/$(fid);
+    }
+    function isMember(fid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid));
+    }
+    function isAdmin(fid) {
+      return signedIn() && request.auth.uid in get(familyPath(fid)).data.admins;
+    }
+
+    // Códigos de familia -> id de familia
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['familyId'])
+        && getAfter(familyPath(request.resource.data.familyId)).data.code == code
+        && request.auth.uid in getAfter(familyPath(request.resource.data.familyId)).data.admins;
+      allow update, delete: if false;
+    }
+
+    match /families/{fid} {
+      allow read: if isMember(fid);
+      allow create: if signedIn()
+        && request.resource.data.admins == [request.auth.uid]
+        && request.resource.data.code is string
+        && request.resource.data.code.size() == 6
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 60;
+      // Los admins pueden añadir/quitar admins y renombrar; el código no cambia nunca
+      allow update: if isAdmin(fid)
+        && request.resource.data.code == resource.data.code
+        && request.resource.data.admins is list
+        && request.resource.data.admins.size() <= 20;
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(fid) || (signedIn() && uid == request.auth.uid);
+        // Entrar uno mismo sabiendo el código de la familia
+        allow create, update: if signedIn()
+          && uid == request.auth.uid
+          && request.resource.data.code == getAfter(familyPath(fid)).data.code
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 60;
+        // Salir uno mismo, o que te quite un admin
+        allow delete: if signedIn() && (uid == request.auth.uid || isAdmin(fid));
+      }
+
+      match /photos/{pid} {
+        // Me gusta: sólo se puede añadir o quitar el propio
+        function likeChangeOk() {
+          let before = resource.data.get('likes', []).toSet();
+          let after = request.resource.data.get('likes', []).toSet();
+          let me = [request.auth.uid].toSet();
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+            && ((after.difference(before) == me && before.difference(after).size() == 0)
+              || (before.difference(after) == me && after.difference(before).size() == 0));
+        }
+        // Contador de comentarios: sólo sube o baja de uno en uno
+        function commentCountOk() {
+          let diff = request.resource.data.get('commentCount', 0) - resource.data.get('commentCount', 0);
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
+            && (diff == 1 || diff == -1);
+        }
+
+        allow read: if isMember(fid);
+        allow create: if isMember(fid)
+          && request.resource.data.uploaderUid == request.auth.uid
+          && request.resource.data.url is string;
+        allow update: if isMember(fid) && (likeChangeOk() || commentCountOk());
+        allow delete: if isMember(fid)
+          && (resource.data.uploaderUid == request.auth.uid || isAdmin(fid));
+
+        match /comments/{cid} {
+          allow read: if isMember(fid);
+          allow create: if isMember(fid)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 500;
+          allow update: if false;
+          // Borra el autor del comentario, el autor de la foto o un admin
+          allow delete: if isMember(fid)
+            && (resource.data.uid == request.auth.uid
+              || isAdmin(fid)
+              || get(/databases/$(database)/documents/families/$(fid)/photos/$(pid)).data.uploaderUid == request.auth.uid);
+        }
+      }
+
+      // Avisos de me gusta y comentarios para quien subió la foto
+      match /activity/{aid} {
+        allow read: if isMember(fid);
+        allow create: if isMember(fid) && request.resource.data.fromUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Vinculación de TV: la TV crea el código; un miembro del móvil lo rellena
+    match /pairings/{code} {
+      allow get: if signedIn() && resource.data.tvUid == request.auth.uid;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.tvUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['tvUid', 'createdAt']);
+      allow update: if signedIn()
+        && request.resource.data.tvUid == resource.data.tvUid
+        && isMember(request.resource.data.familyId)
+        && request.resource.data.familyCode == get(familyPath(request.resource.data.familyId)).data.code;
+      allow delete: if signedIn() && resource.data.tvUid == request.auth.uid;
+    }
+  }
+}
