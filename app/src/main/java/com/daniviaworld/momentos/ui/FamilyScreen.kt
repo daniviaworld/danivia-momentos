@@ -90,6 +90,15 @@ fun FamilyScreen(vm: MainViewModel) {
             }
         }
 
+        // Ayuda
+        item {
+            var showHelp by remember { mutableStateOf(false) }
+            Button(onClick = { showHelp = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("❓  ¿Cómo funciona la app?")
+            }
+            if (showHelp) HelpDialog(vm.isTv) { showHelp = false }
+        }
+
         // Código familiar
         item {
             Card(Modifier.fillMaxWidth()) {

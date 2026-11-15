@@ -42,6 +42,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("ssMusic", false)
         set(value) = sp.edit().putBoolean("ssMusic", value).apply()
 
+    /** Si ya se enseñó la ayuda la primera vez. */
+    var helpSeen: Boolean
+        get() = sp.getBoolean("helpSeen", false)
+        set(value) = sp.edit().putBoolean("helpSeen", value).apply()
+
     var lastWidgetDay: Int
         get() = sp.getInt("lastWidgetDay", 0)
         set(value) = sp.edit().putInt("lastWidgetDay", value).apply()

@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
@@ -105,10 +110,10 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (e.key) {
                     Key.DirectionRight -> {
-                        scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(photos.size - 1)) }; true
+                        scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(photos.size - 1), animationSpec = transitionSpec(vm.viewMode)) }; true
                     }
                     Key.DirectionLeft -> {
-                        scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) }; true
+                        scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0), animationSpec = transitionSpec(vm.viewMode)) }; true
                     }
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause -> {
                         val p = activePlayer
@@ -128,6 +133,11 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
             modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 1,
             userScrollEnabled = !zoomed, // con la foto ampliada, el dedo mueve la foto y no cambia de foto
+            // al soltar el dedo la foto termina de pasar despacio, para que se vea el efecto (cubo, cine…)
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pager,
+                snapAnimationSpec = transitionSpec(vm.viewMode),
+            ),
         ) { page ->
             val item = photos[page]
             Box(Modifier.fillMaxSize().pageTransition(pager, page, transition)) {
@@ -397,4 +407,13 @@ private fun clampOffset(o: Offset, scale: Float, width: Int, height: Int): Offse
     val maxX = width * (scale - 1f) / 2f
     val maxY = height * (scale - 1f) / 2f
     return Offset(o.x.coerceIn(-maxX, maxX), o.y.coerceIn(-maxY, maxY))
+}
+
+/** Duración del paso de una foto a otra: lo bastante lento para que se aprecie el efecto del modo. */
+private fun transitionSpec(mode: ViewMode): AnimationSpec<Float> = when (mode) {
+    ViewMode.CUBE -> tween(durationMillis = 900, easing = FastOutSlowInEasing)
+    ViewMode.CINEMA -> tween(durationMillis = 850, easing = FastOutSlowInEasing)
+    ViewMode.CAROUSEL -> tween(durationMillis = 750, easing = FastOutSlowInEasing)
+    ViewMode.SLIDESHOW -> tween(durationMillis = 1000, easing = LinearOutSlowInEasing)
+    else -> tween(durationMillis = 450, easing = FastOutSlowInEasing)
 }

@@ -26,6 +26,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -97,6 +99,14 @@ private fun ReadyContent(vm: MainViewModel) {
     val allPhotos by vm.photos.collectAsState()
     // al abrir una foto se pasa sólo por las del álbum que se está viendo
     val photos = remember(allPhotos, vm.albumFilter) { vm.filterPhotos(allPhotos) }
+    // La primera vez, la ayuda se abre sola
+    var showHelp by remember { mutableStateOf(!vm.prefs.helpSeen) }
+    if (showHelp) {
+        HelpDialog(vm.isTv) {
+            vm.prefs.helpSeen = true
+            showHelp = false
+        }
+    }
     when (val s = vm.screen) {
         Screen.Home -> HomeScreen(vm)
         Screen.Upload -> {
