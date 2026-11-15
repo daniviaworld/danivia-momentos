@@ -161,6 +161,8 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
                 color = Orange,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 title,
@@ -169,11 +171,14 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            Text(
+                count,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(
-            count,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Spacer(Modifier.width(8.dp))
         if (isTv) {
             OutlinedButton(onClick = onFamily) {

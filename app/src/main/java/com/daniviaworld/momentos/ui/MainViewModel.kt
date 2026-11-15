@@ -15,6 +15,7 @@ import com.daniviaworld.momentos.data.Prefs
 import com.daniviaworld.momentos.data.Repo
 import com.daniviaworld.momentos.data.ViewMode
 import com.daniviaworld.momentos.isTelevision
+import com.daniviaworld.momentos.share.Sharer
 import com.daniviaworld.momentos.update.Updater
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -279,6 +280,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePhoto(photo: Photo) = runBusy {
         val fid = prefs.familyId ?: return@runBusy
         Repo.deletePhoto(fid, photo)
+    }
+
+    // ---------- Compartir ----------
+
+    /** id de la foto que se está preparando para compartir (para enseñar el "cargando"). */
+    var sharingId by mutableStateOf<String?>(null)
+        private set
+
+    fun share(photo: Photo) {
+        if (sharingId != null) return
+        sharingId = photo.id
+        viewModelScope.launch {
+            try {
+                Sharer.share(getApplication<Application>(), photo)
+            } catch (e: Exception) {
+                message = "No se pudo preparar para compartir: ${e.message ?: "revisa la conexión"}"
+            } finally {
+                sharingId = null
+            }
+        }
     }
 
     // ---------- Me gusta y comentarios ----------

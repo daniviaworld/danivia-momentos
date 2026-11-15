@@ -16,6 +16,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -152,6 +155,21 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                     color = Color.White,
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )
+                if (!vm.isTv) {
+                    if (vm.sharingId == current.id) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .size(24.dp),
+                        )
+                    } else {
+                        IconButton(onClick = { vm.share(current) }) {
+                            Icon(Icons.Filled.Share, contentDescription = "Compartir", tint = Color.White)
+                        }
+                    }
+                }
                 if (!vm.isTv && vm.canDelete(current)) {
                     IconButton(onClick = { toDelete = current }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Borrar", tint = Color.White)
