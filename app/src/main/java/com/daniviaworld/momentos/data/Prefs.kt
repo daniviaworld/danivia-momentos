@@ -32,6 +32,16 @@ class Prefs(context: Context) {
         get() = sp.getString("ssSource", "all") ?: "all"
         set(value) = sp.edit().putString("ssSource", value).apply()
 
+    /** Modo del salvapantallas: "cube", "slideshow" o "carousel". */
+    var screensaverMode: String
+        get() = sp.getString("ssMode", "cube") ?: "cube"
+        set(value) = sp.edit().putString("ssMode", value).apply()
+
+    /** Si el salvapantallas suena con la música de fondo elegida. */
+    var screensaverMusic: Boolean
+        get() = sp.getBoolean("ssMusic", false)
+        set(value) = sp.edit().putBoolean("ssMusic", value).apply()
+
     var lastWidgetDay: Int
         get() = sp.getInt("lastWidgetDay", 0)
         set(value) = sp.edit().putInt("lastWidgetDay", value).apply()

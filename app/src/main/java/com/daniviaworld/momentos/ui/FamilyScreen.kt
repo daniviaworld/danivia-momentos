@@ -6,6 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Switch
 import com.daniviaworld.momentos.data.Album
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -183,6 +184,30 @@ fun FamilyScreen(vm: MainViewModel) {
                         help = true
                         if (!opened) vm.message = "No se pudo abrir el ajuste; mira las instrucciones de abajo."
                     }) { Text("Activar salvapantallas") }
+                    Spacer(Modifier.height(12.dp))
+                    Text("¿Cómo se ven?", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf(
+                            "cube" to "🧊 Cubo 3D girando",
+                            "slideshow" to "🖼️ Diapositivas",
+                            "carousel" to "🎠 Carrusel",
+                        ).forEach { (key, label) ->
+                            FilterChip(
+                                selected = vm.screensaverMode == key,
+                                onClick = { vm.setScreensaverModeKey(key) },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🎵 Con música de fondo", modifier = Modifier.weight(1f))
+                        Switch(checked = vm.screensaverMusic, onCheckedChange = { vm.setScreensaverMusicOn(it) })
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text("¿Qué fotos salen? (nunca vídeos)", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))

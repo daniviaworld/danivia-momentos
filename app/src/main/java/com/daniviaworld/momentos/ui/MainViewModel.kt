@@ -456,6 +456,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var screensaverSource by mutableStateOf(prefs.screensaverSource)
         private set
 
+    var screensaverMode by mutableStateOf(prefs.screensaverMode)
+        private set
+
+    fun setScreensaverModeKey(key: String) {
+        prefs.screensaverMode = key
+        screensaverMode = key
+    }
+
+    var screensaverMusic by mutableStateOf(prefs.screensaverMusic)
+        private set
+
+    fun setScreensaverMusicOn(on: Boolean) {
+        prefs.screensaverMusic = on
+        screensaverMusic = on
+    }
+
     fun setScreensaverSourceKey(key: String) {
         prefs.screensaverSource = key
         screensaverSource = key

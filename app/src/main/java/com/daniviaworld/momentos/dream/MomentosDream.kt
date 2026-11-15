@@ -13,7 +13,11 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.daniviaworld.momentos.data.FamilySong
+import com.daniviaworld.momentos.data.MusicLibrary
 import com.daniviaworld.momentos.data.Photo
+import com.daniviaworld.momentos.ui.BackgroundMusic
+import com.daniviaworld.momentos.ui.views.CarouselView
 import com.daniviaworld.momentos.data.Prefs
 import com.daniviaworld.momentos.data.Repo
 import com.daniviaworld.momentos.ui.MomentosTheme
@@ -23,7 +27,7 @@ import com.google.firebase.firestore.ListenerRegistration
 
 /**
  * Salvapantallas de Android TV: cuando la tele está encendida sin usarse,
- * muestra las fotos de la familia en diapositivas (o en el cubo, si es el modo elegido en la app).
+ * muestra las fotos de la familia en el modo elegido en Familia (cubo 3D, diapositivas o carrusel).
  */
 class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
 
@@ -33,7 +37,9 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
     override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
 
     private var photos by mutableStateOf<List<Photo>>(emptyList())
+    private var songs by mutableStateOf<List<FamilySong>>(emptyList())
     private var listener: ListenerRegistration? = null
+    private var songsListener: ListenerRegistration? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -52,8 +58,10 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         if (fid != null && Repo.uid != null) {
             val source = prefs.screensaverSource
             listener = Repo.listenPhotos(fid) { list -> photos = forScreensaver(list, source) }
+            if (prefs.screensaverMusic) songsListener = Repo.listenSongs(fid) { songs = it }
         }
-        val cube = prefs.viewMode == "cube"
+        val mode = prefs.screensaverMode
+        val musicKey = if (prefs.screensaverMusic) prefs.backgroundMusic else ""
 
         val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@MomentosDream)
@@ -61,9 +69,16 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
             setContent {
                 MomentosTheme {
                     val list = photos
+                    val music = MusicLibrary.resolve(this@MomentosDream, musicKey, songs)
                     if (list.isNotEmpty()) {
-                        if (cube) CubeView(list, isTv = true, onOpen = {})
-                        else SlideshowView(list, isTv = true, onOpen = {})
+                        when (mode) {
+                            "slideshow" -> SlideshowView(list, isTv = true, onOpen = {}, musicUri = music)
+                            "carousel" -> {
+                                CarouselView(list, isTv = true, onOpen = {})
+                                BackgroundMusic(music)
+                            }
+                            else -> CubeView(list, isTv = true, onOpen = {}, musicUri = music)
+                        }
                     }
                 }
             }
@@ -96,6 +111,8 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onDetachedFromWindow() {
         listener?.remove()
         listener = null
+        songsListener?.remove()
+        songsListener = null
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         super.onDetachedFromWindow()
     }
