@@ -62,7 +62,7 @@ import kotlin.math.sin
 /**
  * Cubo gigante en 3D: cada cara es una foto. Gira solo cada pocos segundos,
  * alternando giro horizontal y vertical, y "respira" suavemente mientras espera.
- * En la TV: ◀ ▶ ▲ ▼ giran el cubo, OK abre la foto.
+ * En la TV: ◀ ▶ giran el cubo, OK abre la foto, ▲ vuelve a los modos de vista.
  */
 @Composable
 fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
@@ -134,8 +134,6 @@ fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
                 val action: (suspend () -> Unit)? = when (e.key) {
                     Key.DirectionRight -> ({ spin(1, false) })
                     Key.DirectionLeft -> ({ spin(-1, false) })
-                    Key.DirectionDown -> ({ spin(1, true) })
-                    Key.DirectionUp -> ({ spin(-1, true) })
                     else -> null
                 }
                 when {
