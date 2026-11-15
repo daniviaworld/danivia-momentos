@@ -4,7 +4,11 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.daniviaworld.momentos.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -145,6 +149,12 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Image(
+            painter = painterResource(R.drawable.logo_momentos),
+            contentDescription = null,
+            modifier = Modifier.size(if (isTv) 56.dp else 40.dp),
+        )
+        Spacer(Modifier.width(if (isTv) 16.dp else 10.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 "DANIVIA MOMENTOS",

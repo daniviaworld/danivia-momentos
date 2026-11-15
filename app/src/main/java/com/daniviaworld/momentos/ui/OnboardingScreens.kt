@@ -1,5 +1,6 @@
 package com.daniviaworld.momentos.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +30,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.daniviaworld.momentos.R
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,6 +41,12 @@ import androidx.compose.ui.unit.sp
 @Composable
 private fun Brand(big: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Image(
+            painter = painterResource(R.drawable.logo_momentos),
+            contentDescription = null,
+            modifier = Modifier.size(if (big) 150.dp else 110.dp),
+        )
+        Spacer(Modifier.height(12.dp))
         Text(
             "DANIVIA",
             color = Orange,
