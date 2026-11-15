@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.Color
 
 val Orange = Color(0xFFFF8A3D)
 val Violet = Color(0xFF7C5CFF)
-val Night = Color(0xFF0E0F1A)
-val NightCard = Color(0xFF1A1C2E)
+val Night = Color(0xFF111325)
+val NightCard = Color(0xFF1D2036)
 
 private val colors = darkColorScheme(
     primary = Orange,
@@ -16,13 +16,14 @@ private val colors = darkColorScheme(
     secondary = Violet,
     onSecondary = Color.White,
     background = Night,
-    onBackground = Color(0xFFEDEBF5),
+    onBackground = Color(0xFFF2F0FA),
     surface = NightCard,
-    onSurface = Color(0xFFEDEBF5),
-    surfaceVariant = Color(0xFF26283D),
-    onSurfaceVariant = Color(0xFFB9B7CC),
-    surfaceContainer = Color(0xFF1F2135),
-    surfaceContainerHigh = Color(0xFF26283D),
+    onSurface = Color(0xFFF2F0FA),
+    surfaceVariant = Color(0xFF2A2E48),
+    onSurfaceVariant = Color(0xFFCFCDE3),
+    surfaceContainer = Color(0xFF1F2238),
+    surfaceContainerHigh = Color(0xFF2A2E48),
+    surfaceContainerHighest = Color(0xFF33375A),
     error = Color(0xFFFF6B6B),
 )
 

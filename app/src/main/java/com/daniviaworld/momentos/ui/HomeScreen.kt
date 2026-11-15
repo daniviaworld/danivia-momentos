@@ -25,6 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -109,21 +112,31 @@ fun HomeScreen(vm: MainViewModel) {
                     onClose = { vm.clearSelection() },
                     onMove = { picking = true },
                 )
-            } else {
+            } else if (vm.isTv) {
                 Header(
                     title = family?.name ?: "DANIVIA Momentos",
-                    isTv = vm.isTv,
+                    isTv = true,
                     count = countLabel(allPhotos),
                     onFamily = { vm.screen = Screen.FamilyInfo },
                     onAlbums = { vm.screen = Screen.Albums },
                 )
+                ModeSelector(
+                    current = vm.viewMode,
+                    isTv = true,
+                    focusRequester = modesFocus,
+                    onFocusChange = { modesHaveFocus = it },
+                ) { vm.selectViewMode(it) }
+            } else {
+                // Móvil: una sola barra compacta para que las fotos tengan todo el protagonismo
+                PhoneTopBar(
+                    title = family?.name ?: "DANIVIA Momentos",
+                    count = countLabel(allPhotos),
+                    mode = vm.viewMode,
+                    onMode = { vm.selectViewMode(it) },
+                    onAlbums = { vm.screen = Screen.Albums },
+                    onFamily = { vm.screen = Screen.FamilyInfo },
+                )
             }
-            ModeSelector(
-                current = vm.viewMode,
-                isTv = vm.isTv,
-                focusRequester = modesFocus,
-                onFocusChange = { modesHaveFocus = it },
-            ) { vm.selectViewMode(it) }
 
             AlbumFilterRow(vm, albums, allPhotos)
 
@@ -225,14 +238,6 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
         Spacer(Modifier.width(if (isTv) 16.dp else 10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "DANIVIA MOMENTOS",
-                color = Orange,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
                 title,
                 style = if (isTv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
@@ -267,6 +272,90 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun PhoneTopBar(
+    title: String,
+    count: String,
+    mode: ViewMode,
+    onMode: (ViewMode) -> Unit,
+    onAlbums: () -> Unit,
+    onFamily: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.logo_momentos),
+            contentDescription = null,
+            modifier = Modifier.size(34.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                count,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // Botón de modo de vista: icono del modo actual + menú
+        Box {
+            Surface(
+                onClick = { menuOpen = true },
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(mode.icon, fontSize = 17.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text("▾", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                Text(
+                    "Ver como",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+                ViewMode.entries.forEach { m ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "${m.icon}   ${m.label}",
+                                fontWeight = if (m == mode) FontWeight.Bold else FontWeight.Normal,
+                                color = if (m == mode) Orange else MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
+                        onClick = {
+                            onMode(m)
+                            menuOpen = false
+                        },
+                    )
+                }
+            }
+        }
+        IconButton(onClick = onAlbums) { Text("🗂️", fontSize = 20.sp) }
+        IconButton(onClick = onFamily) { Icon(Icons.Filled.Person, contentDescription = "Familia") }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun ModeSelector(
     current: ViewMode,
     isTv: Boolean,
@@ -287,7 +376,7 @@ private fun ModeSelector(
                 selected = mode == current,
                 onClick = { onSelect(mode) },
                 modifier = if (mode == current) Modifier.focusRequester(focusRequester) else Modifier,
-                label = { Text(mode.label) },
+                label = { Text("${mode.icon}  ${mode.label}") },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Orange,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
@@ -306,9 +395,9 @@ private fun UploadBanner(p: UploadManager.Progress, onClose: () -> Unit) {
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val text = when {
                     p.running && p.currentIsVideo ->
@@ -317,7 +406,7 @@ private fun UploadBanner(p: UploadManager.Progress, onClose: () -> Unit) {
                     p.failed == 0 -> "¡Listo! ${p.done} subidos ✨"
                     else -> "Subidos ${p.done}. Fallaron ${p.failed}: " + (p.lastError ?: "revisa la conexión.")
                 }
-                Text(text, modifier = Modifier.weight(1f))
+                Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                 if (!p.running) TextButton(onClick = onClose) { Text("Cerrar") }
             }
             if (p.running) {

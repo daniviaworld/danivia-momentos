@@ -68,28 +68,30 @@ fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, albu
         item(key = "hero") { Hero(heroPhotos, isTv, onOpen) }
         shelves.forEachIndexed { index, shelf ->
             item(key = "s_${index}_${shelf.title}") {
-                Column(Modifier.padding(top = if (isTv) 22.dp else 16.dp)) {
+                Column(Modifier.padding(top = if (isTv) 22.dp else 10.dp)) {
                     Text(
                         shelf.title,
                         style = if (isTv) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = if (isTv) 48.dp else 16.dp, vertical = 8.dp),
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = if (isTv) 48.dp else 14.dp, vertical = if (isTv) 8.dp else 4.dp),
                     )
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = if (isTv) 48.dp else 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(if (isTv) 18.dp else 10.dp),
+                        contentPadding = PaddingValues(horizontal = if (isTv) 48.dp else 14.dp, vertical = if (isTv) 10.dp else 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(if (isTv) 18.dp else 8.dp),
                     ) {
                         items(shelf.photos, key = { "${shelf.title}_${it.id}" }) { photo ->
                             FocusCard(
                                 onClick = { onOpen(photo) },
+                                // móvil: tarjetas verticales (las fotos del móvil son verticales); TV: apaisadas
                                 modifier = Modifier
-                                    .width(if (isTv) 280.dp else 160.dp)
-                                    .aspectRatio(16f / 10f),
-                                shape = RoundedCornerShape(12.dp),
+                                    .width(if (isTv) 280.dp else 128.dp)
+                                    .aspectRatio(if (isTv) 16f / 10f else 3f / 4f),
+                                shape = RoundedCornerShape(if (isTv) 12.dp else 10.dp),
                             ) {
                                 PhotoImage(photo.thumbUrl, Modifier.fillMaxSize())
                                 VideoBadge(photo)
-                                SocialBadge(photo)
+                                SocialBadge(photo, compact = !isTv)
                             }
                         }
                     }
@@ -115,7 +117,7 @@ private fun Hero(heroPhotos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit
     Box(
         Modifier
             .fillMaxWidth()
-            .height(if (isTv) 380.dp else 260.dp)
+            .height(if (isTv) 380.dp else 400.dp)
     ) {
         Crossfade(targetState = photo, animationSpec = tween(1200), label = "hero") { p ->
             PhotoImage(p.url, Modifier.fillMaxSize())

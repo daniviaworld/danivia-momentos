@@ -152,18 +152,24 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        shortDateTime(current.createdAt) +
-                            (if (current.isVideo) "  ·  vídeo ${formatDuration(current.durationMs)}" else "") +
-                            (if (current.enhanced) "  ·  ✨ mejorado" else ""),
+                        // en el móvil el contador va aquí para no amontonar la barra
+                        (if (vm.isTv) "" else "${pager.currentPage + 1}/${photos.size}  ·  ") +
+                            shortDateTime(current.createdAt) +
+                            (if (current.isVideo) "  ·  ${formatDuration(current.durationMs)}" else "") +
+                            (if (current.enhanced) "  ·  ✨" else ""),
                         color = Color(0xFFDDDDDD),
                         style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    "${pager.currentPage + 1} / ${photos.size}",
-                    color = Color.White,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
+                if (vm.isTv) {
+                    Text(
+                        "${pager.currentPage + 1} / ${photos.size}",
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
                 if (!vm.isTv) {
                     if (vm.sharingId == current.id) {
                         CircularProgressIndicator(

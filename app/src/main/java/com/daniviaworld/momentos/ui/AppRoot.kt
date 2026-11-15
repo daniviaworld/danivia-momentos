@@ -92,7 +92,9 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
 
 @Composable
 private fun ReadyContent(vm: MainViewModel) {
-    val photos by vm.photos.collectAsState()
+    val allPhotos by vm.photos.collectAsState()
+    // al abrir una foto se pasa sólo por las del álbum que se está viendo
+    val photos = remember(allPhotos, vm.albumFilter) { vm.filterPhotos(allPhotos) }
     when (val s = vm.screen) {
         Screen.Home -> HomeScreen(vm)
         Screen.Upload -> {

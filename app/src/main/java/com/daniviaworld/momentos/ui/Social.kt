@@ -314,8 +314,8 @@ private fun CommentBubble(comment: Comment, mine: Boolean, canDelete: Boolean, o
 
 /** Corazón y comentarios pequeños sobre las miniaturas (abajo a la derecha). */
 @Composable
-fun BoxScope.SocialBadge(photo: Photo) {
-    if (photo.likes.isEmpty() && photo.commentCount == 0) return
+fun BoxScope.SocialBadge(photo: Photo, compact: Boolean = false) {
+    if (photo.likes.isEmpty() && (compact || photo.commentCount == 0)) return
     Row(
         Modifier
             .align(Alignment.BottomEnd)
@@ -329,7 +329,7 @@ fun BoxScope.SocialBadge(photo: Photo) {
             Icon(Icons.Filled.Favorite, contentDescription = null, tint = Heart, modifier = Modifier.size(12.dp))
             Text(" ${photo.likes.size}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
-        if (photo.commentCount > 0) {
+        if (photo.commentCount > 0 && !compact) {
             Text(
                 (if (photo.likes.isNotEmpty()) "  " else "") + "💬 ${photo.commentCount}",
                 color = Color.White,

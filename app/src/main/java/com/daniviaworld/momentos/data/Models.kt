@@ -55,12 +55,12 @@ data class Member(
     val joinedAt: Long,
 )
 
-enum class ViewMode(val key: String, val label: String) {
-    GRID("grid", "Cuadrícula"),
-    CAROUSEL("carousel", "Carrusel"),
-    CINEMA("cinema", "Estilo cine"),
-    CUBE("cube", "Cubo 3D"),
-    SLIDESHOW("slideshow", "Diapositivas");
+enum class ViewMode(val key: String, val label: String, val icon: String) {
+    GRID("grid", "Cuadrícula", "▦"),
+    CAROUSEL("carousel", "Carrusel", "🎠"),
+    CINEMA("cinema", "Estilo cine", "🎬"),
+    CUBE("cube", "Cubo 3D", "🧊"),
+    SLIDESHOW("slideshow", "Diapositivas", "🖼️");
 
     companion object {
         fun fromKey(key: String?): ViewMode? = entries.firstOrNull { it.key == key }
