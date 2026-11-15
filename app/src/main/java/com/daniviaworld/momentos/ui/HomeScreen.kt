@@ -36,6 +36,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +77,16 @@ fun HomeScreen(vm: MainViewModel) {
 
     val open: (Photo) -> Unit = { vm.screen = Screen.Detail(it.id) }
 
+    // TV: "Atrás" en la pantalla principal lleva a la fila de modos (nunca te quedas atrapado en una vista)
+    val modesFocus = remember { FocusRequester() }
+    var modesHaveFocus by remember { mutableStateOf(false) }
+    BackHandler(enabled = vm.isTv && !modesHaveFocus) {
+        try {
+            modesFocus.requestFocus()
+        } catch (_: Exception) {
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Header(
@@ -78,7 +95,12 @@ fun HomeScreen(vm: MainViewModel) {
                 count = countLabel(photos),
                 onFamily = { vm.screen = Screen.FamilyInfo },
             )
-            ModeSelector(vm.viewMode, vm.isTv) { vm.selectViewMode(it) }
+            ModeSelector(
+                current = vm.viewMode,
+                isTv = vm.isTv,
+                focusRequester = modesFocus,
+                onFocusChange = { modesHaveFocus = it },
+            ) { vm.selectViewMode(it) }
 
             if (upload.total > 0) UploadBanner(upload) { UploadManager.clear() }
 
@@ -159,10 +181,17 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModeSelector(current: ViewMode, isTv: Boolean, onSelect: (ViewMode) -> Unit) {
+private fun ModeSelector(
+    current: ViewMode,
+    isTv: Boolean,
+    focusRequester: FocusRequester,
+    onFocusChange: (Boolean) -> Unit,
+    onSelect: (ViewMode) -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
+            .onFocusChanged { onFocusChange(it.hasFocus) }
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = if (isTv) 44.dp else 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -171,6 +200,7 @@ private fun ModeSelector(current: ViewMode, isTv: Boolean, onSelect: (ViewMode) 
             FilterChip(
                 selected = mode == current,
                 onClick = { onSelect(mode) },
+                modifier = if (mode == current) Modifier.focusRequester(focusRequester) else Modifier,
                 label = { Text(mode.label) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Orange,
