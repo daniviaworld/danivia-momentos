@@ -6,6 +6,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -143,20 +150,9 @@ fun UploadScreen(vm: MainViewModel) {
                 }
                 if (firstImage != null) {
                     Spacer(Modifier.height(12.dp))
-                    Text("Marco y pegatinas", fontWeight = FontWeight.Bold)
+                    Text("🖼️ Marco", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Row(
-                        Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Frames.all.forEach { f ->
-                            FilterChip(
-                                selected = frame == f.key,
-                                onClick = { frame = f.key },
-                                label = { Text(f.label) },
-                            )
-                        }
-                    }
+                    FramePicker(firstImage, frame) { frame = it }
                 }
                 val videoCount = remember(selected) { selected.count { Repo.isVideo(context, it) } }
                 if (videoCount > 0) {
@@ -240,6 +236,93 @@ fun UploadScreen(vm: MainViewModel) {
                 modifier = Modifier.weight(2f),
             ) {
                 Text(if (selected.size == 1) "Subir 1 archivo" else "Subir ${selected.size} archivos")
+            }
+        }
+    }
+}
+
+/** Miniaturas de la propia foto con cada marco, por categorías. */
+@Composable
+private fun FramePicker(uri: Uri, selected: String, onSelect: (String) -> Unit) {
+    val context = LocalContext.current
+    var category by rememberSaveable { mutableStateOf("") }
+    var base by remember(uri) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(uri) {
+        base = withContext(Dispatchers.Default) {
+            try {
+                ImageProcessor.preview(context, uri, enhance = false, maxSide = 240)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        FilterChip(selected = category.isEmpty(), onClick = { category = "" }, label = { Text("Todos") })
+        Frames.categories.forEach { cat ->
+            FilterChip(selected = category == cat, onClick = { category = cat }, label = { Text(cat) })
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    val visible = remember(category) {
+        Frames.all.filter { it.key.isEmpty() || category.isEmpty() || it.category == category }
+    }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(visible.size, key = { visible[it].key }) { i ->
+            val f = visible[i]
+            val thumb by produceState<Bitmap?>(null, base, f.key) {
+                val b = base
+                value = if (b == null) null else withContext(Dispatchers.Default) {
+                    try {
+                        Frames.apply(b, f.key)
+                    } catch (_: Throwable) {
+                        b
+                    }
+                }
+            }
+            val isSel = selected == f.key
+            Column(
+                Modifier
+                    .width(96.dp)
+                    .clickable { onSelect(f.key) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier
+                        .size(96.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(
+                            if (isSel) 3.dp else 1.dp,
+                            if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            RoundedCornerShape(14.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val bmp = thumb
+                    if (bmp == null) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = f.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(5.dp),
+                        )
+                    }
+                }
+                Text(
+                    f.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
     }
