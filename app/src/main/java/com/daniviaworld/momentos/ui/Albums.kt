@@ -81,6 +81,8 @@ fun AlbumsScreen(vm: MainViewModel) {
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Album?>(null) }
     var videoFor by remember { mutableStateOf<AlbumCardData?>(null) }
+    var collageFor by remember { mutableStateOf<AlbumCardData?>(null) }
+    var bookFor by remember { mutableStateOf<AlbumCardData?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -195,11 +197,11 @@ fun AlbumsScreen(vm: MainViewModel) {
                                         )
                                         DropdownMenuItem(
                                             text = { Text("🧩  Hacer un collage") },
-                                            onClick = { menu = false; vm.makeCollage(card.album) },
+                                            onClick = { menu = false; collageFor = card },
                                         )
                                         DropdownMenuItem(
                                             text = { Text("📖  Libro de fotos (PDF)") },
-                                            onClick = { menu = false; vm.makeBook(card.album) },
+                                            onClick = { menu = false; bookFor = card },
                                         )
                                         if (admin && card.album != null) {
                                             DropdownMenuItem(
@@ -219,6 +221,29 @@ fun AlbumsScreen(vm: MainViewModel) {
                 }
             }
         }
+    }
+
+    collageFor?.let { card ->
+        CollageDialog(
+            title = card.album?.title ?: "Sin álbum",
+            photos = card.photos.filter { !it.isVideo },
+            onDismiss = { collageFor = null },
+            onCreate = { chosen, options ->
+                collageFor = null
+                vm.makeCollage(card.album, chosen, options)
+            },
+        )
+    }
+    bookFor?.let { card ->
+        BookDialog(
+            title = card.album?.title ?: "Sin álbum",
+            photos = card.photos.filter { !it.isVideo },
+            onDismiss = { bookFor = null },
+            onCreate = { theme ->
+                bookFor = null
+                vm.makeBook(card.album, theme)
+            },
+        )
     }
 
     videoFor?.let { card ->

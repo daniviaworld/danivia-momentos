@@ -67,7 +67,7 @@ private val helpPhone = listOf(
     HelpSection(
         "🎬 Creaciones",
         listOf(
-            HelpItem("🎬", "Vídeo, collage y libro", "En 🗂️ Álbumes, toca ⋯ en un álbum: vídeo con música, collage o libro PDF para imprimir."),
+            HelpItem("🎬", "Vídeo, collage y libro", "En 🗂️ Álbumes, toca ⋯ en un álbum: vídeo con música, collage (eliges fotos, forma, fondo y marco) o libro PDF para imprimir con el diseño de página que quieras."),
             HelpItem("✏️", "Editar una foto ya subida", "Abre la foto y toca ✏️: pegatinas (arrástralas con el dedo), texto y marco. Siempre se puede volver a la original.", adminOnly = true),
             HelpItem("🎵", "Cambiar la música de un vídeo", "Abre el vídeo y toca 🎵. Elige la música nueva; deja apagado «Mantener el sonido original» para quitar la vieja.", adminOnly = true),
             HelpItem("🎶", "Música", "8 canciones incluidas y las que añada el admin en Familia. Cada álbum puede tener la suya."),

@@ -198,7 +198,7 @@ object Frames {
             l.c.drawRect(x, br.top + bh * 0.12f, min(x + w, br.right - bw * 0.08f), br.bottom - bh * 0.28f, bar)
             x += w + bw * (0.01f + l.rnd.nextFloat() * 0.025f)
         }
-        val day = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        val day = Calendar.getInstance().apply { timeInMillis = dateOverride.get() ?: System.currentTimeMillis() }.get(Calendar.DAY_OF_YEAR)
         text(l, "Nº $day", br.centerX(), br.bottom - bh * 0.06f, bh * 0.2f, Color.BLACK, "monospace")
         return l.out
     }
@@ -681,13 +681,47 @@ object Frames {
 
     // ───────────────────────────── MAQUETACIÓN ─────────────────────────────
 
-    private class L(val out: Bitmap, val c: Canvas, val photo: RectF, val u: Float, val rnd: Random) {
-        val w: Float get() = out.width.toFloat()
-        val h: Float get() = out.height.toFloat()
+    private class L(val out: Bitmap, val c: Canvas, val photo: RectF, val u: Float, val rnd: Random, val w: Float, val h: Float)
+
+    /** Modo página: en vez de crear una imagen nueva, se dibuja en un lienzo dado (p. ej. una página del PDF). */
+    private class PageTarget(val canvas: Canvas, val w: Float, val h: Float)
+
+    private val pageTarget = ThreadLocal<PageTarget?>()
+    private val dateOverride = ThreadLocal<Long?>()
+    private val dummy: Bitmap by lazy { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
+
+    /**
+     * Dibuja una página entera con el diseño del marco [key] y la foto encajada dentro
+     * (para el libro de fotos). Todo lo decorativo queda en vectorial en el PDF.
+     * [dateMillis] = fecha que se escribe en el marco (la de la foto).
+     */
+    fun drawPage(canvas: Canvas, w: Float, h: Float, src: Bitmap, key: String, dateMillis: Long) {
+        pageTarget.set(PageTarget(canvas, w, h))
+        dateOverride.set(dateMillis)
+        try {
+            apply(src, key)
+        } finally {
+            pageTarget.set(null)
+            dateOverride.set(null)
+        }
     }
 
     /** Lienzo con márgenes (en proporción al lado corto de la foto). */
     private fun layout(src: Bitmap, key: String, side: Float, top: Float = side, bottom: Float = side): L {
+        val target = pageTarget.get()
+        if (target != null) {
+            // encajar foto + márgenes del marco dentro de la página, centrado
+            val m = min(src.width, src.height).toFloat()
+            val sc = min(target.w / (src.width + 2 * side * m), target.h / (src.height + (top + bottom) * m))
+            val pw = src.width * sc
+            val ph = src.height * sc
+            val u = min(pw, ph)
+            val blockH = ph + (top + bottom) * u
+            val left = (target.w - pw) / 2
+            val topY = (target.h - blockH) / 2 + top * u
+            val seed = key.hashCode() * 31 + src.width * 7 + src.height
+            return L(dummy, target.canvas, RectF(left, topY, left + pw, topY + ph), u, Random(seed), target.w, target.h)
+        }
         val u = min(src.width, src.height).toFloat()
         val s = (u * side).toInt()
         val t = (u * top).toInt()
@@ -695,7 +729,7 @@ object Frames {
         val out = Bitmap.createBitmap(src.width + 2 * s, src.height + t + b, Bitmap.Config.ARGB_8888)
         val photo = RectF(s.toFloat(), t.toFloat(), (s + src.width).toFloat(), (t + src.height).toFloat())
         val seed = key.hashCode() * 31 + src.width * 7 + src.height
-        return L(out, Canvas(out), photo, u, Random(seed))
+        return L(out, Canvas(out), photo, u, Random(seed), out.width.toFloat(), out.height.toFloat())
     }
 
     private fun photo(
@@ -1179,7 +1213,7 @@ object Frames {
     }
 
     private fun today(pattern: String = "d MMM yyyy"): String =
-        SimpleDateFormat(pattern, Locale("es", "ES")).format(System.currentTimeMillis())
+        SimpleDateFormat(pattern, Locale("es", "ES")).format(dateOverride.get() ?: System.currentTimeMillis())
 
     private fun poly(c: Canvas, p: Paint, vararg pts: Float) {
         val path = Path()

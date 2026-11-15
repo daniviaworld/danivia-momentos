@@ -27,6 +27,7 @@ import com.daniviaworld.momentos.image.Stickers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.daniviaworld.momentos.media.CollageMaker
+import com.daniviaworld.momentos.media.CollageOptions
 import com.daniviaworld.momentos.media.PhotoBookMaker
 import com.daniviaworld.momentos.data.UploadManager
 import com.daniviaworld.momentos.update.Updater
@@ -596,21 +597,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun makeCollage(album: Album?) {
+    fun makeCollage(album: Album?, photos: List<Photo>, options: CollageOptions) {
         val title = album?.title ?: (_family.value?.name ?: "Momentos")
         runCreation {
             creation = Creation.Working("Montando el collage…", null)
-            val file = CollageMaker.make(getApplication<Application>(), albumPhotos(album), title)
+            val file = CollageMaker.make(getApplication<Application>(), photos, title, options)
             val saved = Sharer.saveToDevice(getApplication<Application>(), file, "image/jpeg", "image")
             Creation.Done(file, "image/jpeg", "collage", saved, album?.id)
         }
     }
 
-    fun makeBook(album: Album?) {
+    fun makeBook(album: Album?, theme: String) {
         val title = album?.title ?: (_family.value?.name ?: "Momentos")
         runCreation {
             creation = Creation.Working("Creando el libro de fotos…", 0f)
-            val file = PhotoBookMaker.make(getApplication<Application>(), albumPhotos(album), title) { p ->
+            val file = PhotoBookMaker.make(getApplication<Application>(), albumPhotos(album), title, theme) { p ->
                 creation = Creation.Working("Creando el libro de fotos…", p)
             }
             val saved = Sharer.saveToDevice(getApplication<Application>(), file, "application/pdf", "download")
