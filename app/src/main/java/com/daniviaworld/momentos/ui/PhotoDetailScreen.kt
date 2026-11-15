@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import com.daniviaworld.momentos.data.ViewMode
+import kotlin.math.abs
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -109,8 +114,10 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
             }
             .focusable(),
     ) {
+        val transition = vm.viewMode
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
             val item = photos[page]
+            Box(Modifier.fillMaxSize().pageTransition(pager, page, transition)) {
             if (item.isVideo && item.videoUrl.isNotBlank()) {
                 if (page == pager.settledPage) {
                     // Sólo la página visible tiene reproductor (ahorra memoria y datos)
@@ -129,6 +136,7 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                 }
             } else {
                 ZoomablePhoto(item, enabled = !vm.isTv) { showUi = !showUi }
+            }
             }
         }
 
@@ -283,3 +291,58 @@ private fun ZoomablePhoto(photo: Photo, enabled: Boolean, onTap: () -> Unit) {
         },
     )
 }
+
+/**
+ * Forma de pasar de foto según el modo de vista elegido. Sólo afecta al movimiento:
+ * con la foto quieta (desplazamiento 0) todo vuelve a su tamaño normal.
+ */
+private fun Modifier.pageTransition(pager: PagerState, page: Int, mode: ViewMode): Modifier =
+    this
+        .graphicsLayer {
+            // > 0: la página se va hacia la izquierda; < 0: llega desde la derecha
+            val o = ((pager.currentPage - page) + pager.currentPageOffsetFraction).coerceIn(-1f, 1f)
+            val a = abs(o)
+            when (mode) {
+                ViewMode.CUBE -> {
+                    // cara de un cubo que gira sobre su arista
+                    cameraDistance = 14f * density
+                    transformOrigin = TransformOrigin(if (o > 0f) 1f else 0f, 0.5f)
+                    rotationY = -90f * o
+                }
+                ViewMode.CINEMA -> {
+                    // la foto que se va se queda detrás, se aleja y se apaga; la nueva entra por encima
+                    if (o > 0f) {
+                        translationX = size.width * o
+                        val sc = 1f - 0.18f * o
+                        scaleX = sc
+                        scaleY = sc
+                        alpha = 1f - 0.7f * o
+                    }
+                }
+                ViewMode.CAROUSEL -> {
+                    // carrusel: las fotos se inclinan y encogen al pasar
+                    cameraDistance = 14f * density
+                    rotationY = 35f * o
+                    val sc = 1f - 0.22f * a
+                    scaleX = sc
+                    scaleY = sc
+                }
+                ViewMode.SLIDESHOW -> {
+                    // fundido con un ligero zoom, como en las diapositivas
+                    translationX = size.width * o
+                    alpha = 1f - a
+                    val sc = 1f + 0.08f * a
+                    scaleX = sc
+                    scaleY = sc
+                }
+                else -> Unit // cuadrícula: deslizamiento normal
+            }
+        }
+        .drawWithContent {
+            drawContent()
+            if (mode == ViewMode.CUBE) {
+                val o = ((pager.currentPage - page) + pager.currentPageOffsetFraction).coerceIn(-1f, 1f)
+                // la cara que gira recibe menos luz
+                drawRect(Color.Black.copy(alpha = abs(o) * 0.5f))
+            }
+        }
