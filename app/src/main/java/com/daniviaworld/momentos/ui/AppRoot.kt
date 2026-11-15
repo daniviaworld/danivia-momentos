@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,10 +34,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppRoot(vm: MainViewModel = viewModel()) {
+    // Surface fija el color de textos e iconos (claro sobre fondo oscuro) en toda la app
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+    ) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         when (val state = vm.appState) {
@@ -80,6 +86,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
                 text = { Text(msg) },
             )
         }
+    }
     }
 }
 
