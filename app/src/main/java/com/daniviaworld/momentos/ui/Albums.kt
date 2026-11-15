@@ -350,18 +350,6 @@ fun AlbumPickerDialog(
     val albums by vm.albums.collectAsState()
     var creating by remember { mutableStateOf(false) }
 
-    videoFor?.let { card ->
-        CreateVideoDialog(
-            album = card.album,
-            photoCount = card.photos.count { !it.isVideo },
-            onDismiss = { videoFor = null },
-            onCreate = { music, seconds ->
-                videoFor = null
-                vm.makeVideo(card.album, music, seconds)
-            },
-        )
-    }
-
     if (creating) {
         AlbumEditDialog(
             title = "Nuevo álbum",
