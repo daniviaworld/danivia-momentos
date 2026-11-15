@@ -2,6 +2,13 @@ package com.daniviaworld.momentos.ui
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import com.daniviaworld.momentos.data.Album
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,6 +56,11 @@ import com.daniviaworld.momentos.update.Updater
 fun FamilyScreen(vm: MainViewModel) {
     val family by vm.family.collectAsState()
     val members by vm.members.collectAsState()
+    val songs by vm.songs.collectAsState()
+    val albums by vm.albums.collectAsState()
+    val pickSong = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.uploadSong(uri)
+    }
     val context = LocalContext.current
     val me = vm.myUid
     val iAmAdmin = vm.isAdmin()
@@ -171,6 +183,10 @@ fun FamilyScreen(vm: MainViewModel) {
                         help = true
                         if (!opened) vm.message = "No se pudo abrir el ajuste; mira las instrucciones de abajo."
                     }) { Text("Activar salvapantallas") }
+                    Spacer(Modifier.height(12.dp))
+                    Text("¿Qué fotos salen? (nunca vídeos)", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    ScreensaverChips(vm, albums)
                     if (help) {
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -201,10 +217,44 @@ fun FamilyScreen(vm: MainViewModel) {
                     MusicChips(selected = vm.backgroundMusic, onSelect = {
                         vm.setBackgroundMusicKey(it)
                         preview = it
-                    })
+                    }, songs = songs)
                     if (preview.isNotBlank()) {
-                        BackgroundMusic(preview)
+                        BackgroundMusic(vm.musicUri(preview))
                         TextButton(onClick = { preview = "" }) { Text("⏹ Parar la escucha") }
+                    }
+
+                    // Biblioteca musical de la familia: canciones de verdad subidas por el admin
+                    Spacer(Modifier.height(14.dp))
+                    Text("Música de la familia", fontWeight = FontWeight.Bold)
+                    if (songs.isEmpty()) {
+                        Text(
+                            if (iAmAdmin && !vm.isTv) "Añade canciones de tu móvil y sonarán en todos los aparatos, también en la tele."
+                            else "Todavía no hay canciones de la familia.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    songs.forEach { s ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎵 ${s.name}", modifier = Modifier.weight(1f), maxLines = 1)
+                            if (iAmAdmin && !vm.isTv) {
+                                TextButton(onClick = { vm.deleteSong(s) }) {
+                                    Text("Quitar", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    if (iAmAdmin && !vm.isTv) {
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = { pickSong.launch(arrayOf("audio/*")) },
+                            enabled = !vm.busy,
+                        ) { Text("➕ Añadir canción del móvil") }
+                        Text(
+                            "Música libre y gratis: Pixabay Music o la Biblioteca de audio de YouTube. Máx. 20 MB por canción.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -297,5 +347,28 @@ fun FamilyScreen(vm: MainViewModel) {
             },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancelar") } },
         )
+    }
+}
+
+/** Elegir las fotos del salvapantallas: todas, las más queridas o un álbum. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScreensaverChips(vm: MainViewModel, albums: List<Album>) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val options = buildList {
+            add("all" to "📷 Todas las fotos")
+            add("loved" to "❤️ Las más queridas")
+            albums.forEach { add("album:${it.id}" to it.title) }
+        }
+        options.forEach { (key, label) ->
+            FilterChip(
+                selected = vm.screensaverSource == key,
+                onClick = { vm.setScreensaverSourceKey(key) },
+                label = { Text(label, maxLines = 1) },
+            )
+        }
     }
 }

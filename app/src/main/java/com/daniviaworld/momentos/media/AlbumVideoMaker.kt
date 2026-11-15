@@ -105,6 +105,19 @@ object AlbumVideoMaker {
         }
         if (files.isEmpty()) throw IllegalArgumentException("No se pudieron descargar las fotos. Revisa la conexión.")
 
+        // Canción de la familia (en internet): se descarga antes de montar
+        var music = options.musicUri
+        if (music != null && (music.scheme == "https" || music.scheme == "http")) {
+            withContext(Dispatchers.Main) { onProgress("Descargando la música…", 0.3f) }
+            music = try {
+                val f = File(work, "musica.mp3")
+                withContext(Dispatchers.IO) { Sharer.download(music.toString(), f) }
+                Uri.fromFile(f)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         // 2. Portada y cierre
         val dateText = dateRange(chosen)
         val cover = File(work, "portada.jpg")
@@ -118,19 +131,19 @@ object AlbumVideoMaker {
         val out = File(Sharer.creationsDir(app), "Momentos_${safeName(options.title)}.mp4")
         out.delete()
         val attempts = listOf(
-            Triple(true, options.musicUri, "con música"),
-            Triple(false, options.musicUri, "sin zoom"),
+            Triple(true, music, "con música"),
+            Triple(false, music, "sin zoom"),
             Triple(false, null, "sin música"),
         ).distinctBy { it.first to it.second }
         var lastError: Exception? = null
-        for ((zoom, music, _) in attempts) {
+        for ((zoom, track, _) in attempts) {
             try {
                 val seq = buildList {
                     add(imageItem(cover, 2500, w, h, zoom = false))
                     files.forEach { add(imageItem(it, options.secondsPerPhoto * 1000L, w, h, zoom)) }
                     add(imageItem(ending, 2500, w, h, zoom = false))
                 }
-                export(app, seq, music, out) { p -> onProgress("Creando el vídeo…", 0.3f + 0.7f * p) }
+                export(app, seq, track, out) { p -> onProgress("Creando el vídeo…", 0.3f + 0.7f * p) }
                 work.deleteRecursively()
                 return out
             } catch (e: Exception) {

@@ -49,7 +49,7 @@ import kotlinx.coroutines.delay
 
 /** Pase de diapositivas con fundido y efecto "Ken Burns" (zoom y desplazamiento lentos). */
 @Composable
-fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicKey: String = "") {
+fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicUri: android.net.Uri? = null) {
     KeepScreenOn()
     var index by remember { mutableIntStateOf(0) }
     var interaction by remember { mutableIntStateOf(0) }
@@ -72,7 +72,7 @@ fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, m
     }
     val safeIndex = index.mod(count.coerceAtLeast(1))
     // la música se pausa mientras suena un vídeo
-    BackgroundMusic(musicKey, play = photos.getOrNull(safeIndex)?.isVideo != true)
+    BackgroundMusic(musicUri, play = photos.getOrNull(safeIndex)?.isVideo != true)
     Prefetch(listOfNotNull(photos.getOrNull((safeIndex + 1).mod(count.coerceAtLeast(1)))?.url))
 
     Box(

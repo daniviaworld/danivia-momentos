@@ -41,6 +41,14 @@ data class Album(
     val title: String get() = if (emoji.isBlank()) name else "$emoji $name"
 }
 
+/** Canción subida por la familia (biblioteca musical). */
+data class FamilySong(
+    val id: String,
+    val name: String,
+    val url: String,
+    val path: String,
+)
+
 data class Comment(
     val id: String,
     val uid: String,

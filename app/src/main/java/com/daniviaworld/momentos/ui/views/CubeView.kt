@@ -66,9 +66,9 @@ import kotlin.math.sin
  * En la TV: ◀ ▶ giran el cubo, OK abre la foto, ▲ vuelve a los modos de vista.
  */
 @Composable
-fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicKey: String = "") {
+fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicUri: android.net.Uri? = null) {
     KeepScreenOn()
-    BackgroundMusic(musicKey)
+    BackgroundMusic(musicUri)
     var index by remember { mutableIntStateOf(0) }
     var vertical by remember { mutableStateOf(false) }
     var forward by remember { mutableStateOf(true) }

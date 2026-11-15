@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.daniviaworld.momentos.data.Album
+import com.daniviaworld.momentos.data.FamilySong
+import com.daniviaworld.momentos.data.MusicLibrary
 import com.daniviaworld.momentos.data.Comment
 import com.daniviaworld.momentos.data.Family
 import com.daniviaworld.momentos.data.Member
@@ -88,9 +90,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val members: StateFlow<List<Member>> = _members
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums
+    private val _songs = MutableStateFlow<List<FamilySong>>(emptyList())
+    val songs: StateFlow<List<FamilySong>> = _songs
 
     /** Filtro de álbum en la pantalla principal: ALL_ALBUMS, NO_ALBUM o el id de un álbum. */
     var albumFilter by mutableStateOf(ALL_ALBUMS)
+
+    /** true si el álbum se abrió desde la pantalla Álbumes (para que "atrás" vuelva allí). */
+    private var albumFromList = false
+
+    fun openAlbum(albumIdOrNone: String) {
+        albumFilter = albumIdOrNone
+        albumFromList = true
+        screen = Screen.Home
+    }
+
+    fun selectAlbumFilter(id: String) {
+        albumFilter = id
+        albumFromList = false
+    }
+
+    /** "Atrás" estando dentro de un álbum: vuelve a la lista de álbumes o a "Todas". */
+    fun backFromAlbum() {
+        albumFilter = ALL_ALBUMS
+        if (albumFromList) {
+            albumFromList = false
+            screen = Screen.Albums
+        }
+    }
 
     /** Selección múltiple (admin) para mover fotos de álbum. */
     var selectedIds by mutableStateOf<Set<String>>(emptySet())
@@ -214,6 +241,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         listeners += Repo.listenMembers(fid) { _members.value = it }
+        listeners += Repo.listenSongs(fid) { _songs.value = it }
         listeners += Repo.listenAlbums(fid) { list ->
             _albums.value = list
             // si borran el álbum que estaba filtrado, volvemos a "Todas"
@@ -242,6 +270,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _family.value = null
         _members.value = emptyList()
         _albums.value = emptyList()
+        _songs.value = emptyList()
         tokenSaved = false
         albumFilter = ALL_ALBUMS
         selectedIds = emptySet()
@@ -398,6 +427,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun musicKey(albums: List<Album>): String {
         val album = albums.firstOrNull { it.id == albumFilter }
         return album?.music?.takeIf { it.isNotBlank() } ?: prefs.backgroundMusic
+    }
+
+    /** Dirección de la música para una clave ("alegre", "fam:<id>"…), o null. */
+    fun musicUri(key: String?): android.net.Uri? =
+        MusicLibrary.resolve(getApplication<Application>(), key, _songs.value)
+
+    fun uploadSong(uri: android.net.Uri) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        Repo.uploadSong(getApplication<Application>(), fid, uri)
+        message = "🎵 Canción añadida a la música de la familia."
+    }
+
+    fun deleteSong(song: FamilySong) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        Repo.deleteSong(fid, song)
+        if (prefs.backgroundMusic == MusicLibrary.familyKey(song)) setBackgroundMusicKey("")
+    }
+
+    var screensaverSource by mutableStateOf(prefs.screensaverSource)
+        private set
+
+    fun setScreensaverSourceKey(key: String) {
+        prefs.screensaverSource = key
+        screensaverSource = key
     }
 
     var backgroundMusic by mutableStateOf(prefs.backgroundMusic)

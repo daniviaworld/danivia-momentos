@@ -199,6 +199,64 @@ object Repo {
         )
     }
 
+    // ---------- Biblioteca musical de la familia ----------
+
+    fun listenSongs(fid: String, onChange: (List<FamilySong>) -> Unit): ListenerRegistration =
+        families().document(fid).collection("music")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { snap, _ ->
+                if (snap == null) return@addSnapshotListener
+                onChange(snap.documents.mapNotNull {
+                    val url = it.getString("url") ?: return@mapNotNull null
+                    FamilySong(it.id, it.getString("name") ?: "Canción", url, it.getString("path") ?: "")
+                })
+            }
+
+    /** Sube una canción del móvil a la biblioteca de la familia (máx. 20 MB). */
+    suspend fun uploadSong(context: Context, fid: String, uri: Uri) {
+        val me = ensureSignedIn()
+        val resolver = context.contentResolver
+        var name = "Canción"
+        var size = -1L
+        resolver.query(uri, null, null, null, null)?.use { c ->
+            val n = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val s = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (c.moveToFirst()) {
+                if (n >= 0) name = c.getString(n) ?: name
+                if (s >= 0) size = c.getLong(s)
+            }
+        }
+        if (size > 20L * 1024 * 1024) throw IllegalArgumentException("La canción ocupa más de 20 MB. Elige una más corta.")
+        val mime = resolver.getType(uri) ?: "audio/mpeg"
+        if (!mime.startsWith("audio/")) throw IllegalArgumentException("Ese archivo no es una canción.")
+        val ext = name.substringAfterLast('.', "mp3").lowercase().take(4)
+        val ref = families().document(fid).collection("music").document()
+        val path = "families/$fid/music/${ref.id}.$ext"
+        val meta = StorageMetadata.Builder().setContentType(mime).setCustomMetadata("uploaderUid", me).build()
+        val sRef = storage.reference.child(path)
+        sRef.putFile(uri, meta).await()
+        val url = sRef.downloadUrl.await().toString()
+        ref.set(
+            mapOf(
+                "name" to name.substringBeforeLast('.').take(60),
+                "url" to url,
+                "path" to path,
+                "uploaderUid" to me,
+                "createdAt" to FieldValue.serverTimestamp(),
+            )
+        ).await()
+    }
+
+    suspend fun deleteSong(fid: String, song: FamilySong) {
+        families().document(fid).collection("music").document(song.id).delete().await()
+        if (song.path.isNotBlank()) {
+            try {
+                storage.reference.child(song.path).delete().await()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     // ---------- Reacciones ----------
 
     /** Pone (o quita, con null) mi reacción con emoji. */

@@ -50,7 +50,8 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         val prefs = Prefs(this)
         val fid = prefs.familyId
         if (fid != null && Repo.uid != null) {
-            listener = Repo.listenPhotos(fid) { list -> photos = list }
+            val source = prefs.screensaverSource
+            listener = Repo.listenPhotos(fid) { list -> photos = forScreensaver(list, source) }
         }
         val cube = prefs.viewMode == "cube"
 
@@ -68,6 +69,18 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
             }
         }
         setContentView(view)
+    }
+
+    /** Sólo fotos (nunca vídeos), y las elegidas: todas, las más queridas o las de un álbum. */
+    private fun forScreensaver(all: List<Photo>, source: String): List<Photo> {
+        val onlyPhotos = all.filter { !it.isVideo }
+        val chosen = when {
+            source == "loved" -> onlyPhotos.filter { it.likes.isNotEmpty() || it.reactions.isNotEmpty() }
+            source.startsWith("album:") -> onlyPhotos.filter { it.albumId == source.removePrefix("album:") }
+            else -> onlyPhotos
+        }
+        // si el álbum elegido está vacío, mejor enseñar todas que una pantalla negra
+        return chosen.ifEmpty { onlyPhotos }
     }
 
     override fun onDreamingStarted() {

@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -104,6 +105,10 @@ fun HomeScreen(vm: MainViewModel) {
         }
     }
 
+    // "Atrás" dentro de un álbum: vuelve al álbum de origen (lista de álbumes) o a "Todas".
+    // Va después del de la TV para tener prioridad.
+    BackHandler(enabled = vm.albumFilter != ALL_ALBUMS && !vm.selecting) { vm.backFromAlbum() }
+
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (vm.selecting) {
@@ -140,6 +145,35 @@ fun HomeScreen(vm: MainViewModel) {
 
             AlbumFilterRow(vm, albums, allPhotos)
 
+            // Barra del álbum abierto, con flecha para volver
+            if (vm.albumFilter != ALL_ALBUMS && !vm.selecting) {
+                val title = albums.firstOrNull { it.id == vm.albumFilter }?.title ?: "📂 Sin álbum"
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = if (vm.isTv) 40.dp else 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { vm.backFromAlbum() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    }
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        countLabel(photos),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                }
+            }
+
             if (upload.total > 0) UploadBanner(upload) { UploadManager.clear() }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -168,8 +202,8 @@ fun HomeScreen(vm: MainViewModel) {
                             open,
                             albums = if (vm.albumFilter == ALL_ALBUMS) albums else emptyList(),
                         )
-                        ViewMode.CUBE -> CubeView(photos, vm.isTv, open, musicKey = vm.musicKey(albums))
-                        ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open, musicKey = vm.musicKey(albums))
+                        ViewMode.CUBE -> CubeView(photos, vm.isTv, open, musicUri = vm.musicUri(vm.musicKey(albums)))
+                        ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open, musicUri = vm.musicUri(vm.musicKey(albums)))
                     }
                 }
             }

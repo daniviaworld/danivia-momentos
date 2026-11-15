@@ -27,6 +27,11 @@ class Prefs(context: Context) {
         get() = sp.getString("familyCode", "") ?: ""
         set(value) = sp.edit().putString("familyCode", value).apply()
 
+    /** Fotos del salvapantallas: "all", "loved" o "album:<id>". Nunca vídeos. */
+    var screensaverSource: String
+        get() = sp.getString("ssSource", "all") ?: "all"
+        set(value) = sp.edit().putString("ssSource", value).apply()
+
     var lastWidgetDay: Int
         get() = sp.getInt("lastWidgetDay", 0)
         set(value) = sp.edit().putInt("lastWidgetDay", value).apply()

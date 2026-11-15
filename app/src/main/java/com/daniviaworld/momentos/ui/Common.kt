@@ -49,7 +49,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import com.daniviaworld.momentos.data.MusicLibrary
 import androidx.compose.runtime.LaunchedEffect
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -268,14 +267,17 @@ fun VideoPlayer(
 
 // ---------- Música ----------
 
-/** Música de fondo en bucle (pistas de MusicLibrary). [play] = false la pausa (p. ej. mientras suena un vídeo). */
+/**
+ * Música de fondo en bucle: una pista propia (android.resource://) o una canción de la familia (https).
+ * [play] = false la pausa (p. ej. mientras suena un vídeo).
+ */
 @Composable
-fun BackgroundMusic(trackKey: String, play: Boolean = true, volume: Float = 0.55f) {
-    val track = MusicLibrary.byKey(trackKey) ?: return
+fun BackgroundMusic(uri: android.net.Uri?, play: Boolean = true, volume: Float = 0.6f) {
+    if (uri == null) return
     val context = LocalContext.current
-    val player = remember(track.key) {
+    val player = remember(uri) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(MusicLibrary.uri(context, track)))
+            setMediaItem(MediaItem.fromUri(uri))
             repeatMode = Player.REPEAT_MODE_ALL
             this.volume = volume
             prepare()

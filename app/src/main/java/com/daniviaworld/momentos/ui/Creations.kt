@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.daniviaworld.momentos.data.Album
 import com.daniviaworld.momentos.data.MusicLibrary
+import com.daniviaworld.momentos.data.FamilySong
 
 /** Opciones del vídeo resumen: música (nuestra o del móvil) y segundos por foto. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,11 +42,14 @@ import com.daniviaworld.momentos.data.MusicLibrary
 fun CreateVideoDialog(
     album: Album?,
     photoCount: Int,
+    songs: List<FamilySong>,
     onDismiss: () -> Unit,
     onCreate: (musicUri: Uri?, secondsPerPhoto: Int) -> Unit,
 ) {
     val context = LocalContext.current
-    var musicKey by remember { mutableStateOf(album?.music?.takeIf { it.isNotBlank() } ?: "alegre") }
+    var musicKey by remember {
+        mutableStateOf(album?.music?.takeIf { it.isNotBlank() } ?: songs.firstOrNull()?.let { MusicLibrary.familyKey(it) } ?: "alegre")
+    }
     var ownSong by remember { mutableStateOf<Uri?>(null) }
     var seconds by remember { mutableIntStateOf(3) }
     val pickSong = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -73,7 +77,7 @@ fun CreateVideoDialog(
                         TextButton(onClick = { ownSong = null }) { Text("Quitar") }
                     }
                 } else {
-                    MusicChips(selected = musicKey, onSelect = { musicKey = it })
+                    MusicChips(selected = musicKey, onSelect = { musicKey = it }, songs = songs)
                 }
                 TextButton(onClick = { pickSong.launch(arrayOf("audio/*")) }) {
                     Text("🎵 Usar una canción de mi móvil…")
@@ -93,7 +97,7 @@ fun CreateVideoDialog(
         },
         confirmButton = {
             Button(onClick = {
-                val uri = ownSong ?: MusicLibrary.byKey(musicKey)?.let { MusicLibrary.uri(context, it) }
+                val uri = ownSong ?: MusicLibrary.resolve(context, musicKey, songs)
                 onCreate(uri, seconds)
             }) { Text("Crear vídeo") }
         },

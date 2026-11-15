@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daniviaworld.momentos.data.Album
 import com.daniviaworld.momentos.data.MusicLibrary
+import com.daniviaworld.momentos.data.FamilySong
 import com.daniviaworld.momentos.data.Photo
 
 val albumEmojis = listOf(
@@ -74,6 +75,7 @@ val albumEmojis = listOf(
 fun AlbumsScreen(vm: MainViewModel) {
     val albums by vm.albums.collectAsState()
     val photos by vm.photos.collectAsState()
+    val songs by vm.songs.collectAsState()
     val admin = vm.isAdmin()
     var editing by remember { mutableStateOf<Album?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -143,10 +145,7 @@ fun AlbumsScreen(vm: MainViewModel) {
                 items(cards, key = { it.album?.id ?: "none" }) { card ->
                     Column {
                         FocusCard(
-                            onClick = {
-                                vm.albumFilter = card.album?.id ?: NO_ALBUM
-                                vm.screen = Screen.Home
-                            },
+                            onClick = { vm.openAlbum(card.album?.id ?: NO_ALBUM) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1.2f),
@@ -226,6 +225,7 @@ fun AlbumsScreen(vm: MainViewModel) {
         CreateVideoDialog(
             album = card.album,
             photoCount = card.photos.count { !it.isVideo },
+            songs = songs,
             onDismiss = { videoFor = null },
             onCreate = { music, seconds ->
                 videoFor = null
@@ -239,6 +239,7 @@ fun AlbumsScreen(vm: MainViewModel) {
             title = "Nuevo álbum",
             initialName = "",
             initialEmoji = "📸",
+            songs = songs,
             onDismiss = { creating = false },
             onSave = { name, emoji, music ->
                 vm.createAlbum(name, emoji, music = music)
@@ -252,6 +253,7 @@ fun AlbumsScreen(vm: MainViewModel) {
             initialName = album.name,
             initialEmoji = album.emoji,
             initialMusic = album.music,
+            songs = songs,
             onDismiss = { editing = null },
             onSave = { name, emoji, music ->
                 vm.updateAlbum(album, name, emoji, music)
@@ -285,6 +287,7 @@ fun AlbumEditDialog(
     initialEmoji: String,
     onDismiss: () -> Unit,
     initialMusic: String = "",
+    songs: List<FamilySong> = emptyList(),
     onSave: (name: String, emoji: String, music: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -326,7 +329,7 @@ fun AlbumEditDialog(
                 Spacer(Modifier.height(12.dp))
                 Text("Música del álbum", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(6.dp))
-                MusicChips(selected = music, onSelect = { music = it })
+                MusicChips(selected = music, onSelect = { music = it }, songs = songs)
             }
         },
         confirmButton = {
@@ -348,6 +351,7 @@ fun AlbumPickerDialog(
     onDismiss: () -> Unit,
 ) {
     val albums by vm.albums.collectAsState()
+    val songs by vm.songs.collectAsState()
     var creating by remember { mutableStateOf(false) }
 
     if (creating) {
@@ -355,6 +359,7 @@ fun AlbumPickerDialog(
             title = "Nuevo álbum",
             initialName = "",
             initialEmoji = "📸",
+            songs = songs,
             onDismiss = { creating = false },
             onSave = { name, emoji, music ->
                 vm.createAlbum(name, emoji, photoIds, music)
@@ -427,7 +432,7 @@ fun AlbumFilterRow(vm: MainViewModel, albums: List<Album>, photos: List<Photo>) 
         options.forEach { (id, label) ->
             FilterChip(
                 selected = vm.albumFilter == id,
-                onClick = { vm.albumFilter = id },
+                onClick = { vm.selectAlbumFilter(id) },
                 label = { Text(label, maxLines = 1) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Violet,
@@ -442,12 +447,21 @@ fun AlbumFilterRow(vm: MainViewModel, albums: List<Album>, photos: List<Photo>) 
 /** Chips para elegir una pista de música ("" = sin música). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MusicChips(selected: String, onSelect: (String) -> Unit) {
+fun MusicChips(selected: String, onSelect: (String) -> Unit, songs: List<FamilySong> = emptyList()) {
     Row(
         Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         FilterChip(selected = selected.isBlank(), onClick = { onSelect("") }, label = { Text("🔇 Sin música") })
+        // primero las canciones de la familia (las de verdad), luego las propias de la app
+        songs.forEach { s ->
+            val key = MusicLibrary.familyKey(s)
+            FilterChip(
+                selected = selected == key,
+                onClick = { onSelect(key) },
+                label = { Text("🎵 ${s.name}", maxLines = 1) },
+            )
+        }
         MusicLibrary.tracks.forEach { t ->
             FilterChip(selected = selected == t.key, onClick = { onSelect(t.key) }, label = { Text(t.label) })
         }
