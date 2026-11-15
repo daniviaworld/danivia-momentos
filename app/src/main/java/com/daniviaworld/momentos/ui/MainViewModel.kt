@@ -403,6 +403,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Crea un álbum (cualquier miembro, p. ej. al subir fotos) y devuelve su id. */
+    fun createAlbumAndThen(name: String, emoji: String, music: String, onCreated: (String) -> Unit) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        val id = Repo.createAlbum(fid, name, emoji, music)
+        onCreated(id)
+        message = "📁 Álbum «$name» creado."
+    }
+
     fun updateAlbum(album: Album, name: String, emoji: String, music: String) = runBusy {
         val fid = prefs.familyId ?: return@runBusy
         Repo.updateAlbum(fid, album.id, name, emoji, music)

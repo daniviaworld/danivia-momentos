@@ -336,6 +336,7 @@ object Repo {
                 "name" to name.trim().take(40),
                 "emoji" to emoji,
                 "music" to music,
+                "creatorUid" to uid,
                 "createdAt" to FieldValue.serverTimestamp(),
             )
         ).await()

@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -86,6 +89,21 @@ fun UploadScreen(vm: MainViewModel) {
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 50)
     ) { uris -> if (uris.isNotEmpty()) selected = uris }
 
+    var creatingAlbum by remember { mutableStateOf(false) }
+    if (creatingAlbum) {
+        AlbumEditDialog(
+            title = "Nuevo álbum",
+            initialName = "",
+            initialEmoji = "📸",
+            songs = vm.songs.collectAsState().value,
+            onDismiss = { creatingAlbum = false },
+            onSave = { name, emoji, music ->
+                creatingAlbum = false
+                vm.createAlbumAndThen(name, emoji, music) { id -> albumId = id }
+            },
+        )
+    }
+
     fun openPicker() = picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
 
     LaunchedEffect(Unit) {
@@ -123,11 +141,16 @@ fun UploadScreen(vm: MainViewModel) {
             return@Column
         }
 
-        Card(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+        // Todo en una sola lista con scroll; el botón de subir queda fijo abajo
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(96.dp),
+            contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
         ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -166,41 +189,48 @@ fun UploadScreen(vm: MainViewModel) {
             }
         }
 
-        if (albums.isNotEmpty()) {
-            Text(
-                "Álbum",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
-            )
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = albumId == null,
-                    onClick = { albumId = null },
-                    label = { Text("📂 Sin álbum") },
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                Text(
+                    "📁 Álbum",
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp),
                 )
-                albums.forEach { a ->
-                    FilterChip(
-                        selected = albumId == a.id,
-                        onClick = { albumId = a.id },
-                        label = { Text(a.title, maxLines = 1) },
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AssistChip(
+                        onClick = { creatingAlbum = true },
+                        label = { Text("➕ Nuevo álbum") },
                     )
+                    FilterChip(
+                        selected = albumId == null,
+                        onClick = { albumId = null },
+                        label = { Text("📂 Sin álbum") },
+                    )
+                    // el recién creado primero, para que se vea que está elegido
+                    albums.sortedByDescending { it.id == albumId }.forEach { a ->
+                        FilterChip(
+                            selected = albumId == a.id,
+                            onClick = { albumId = a.id },
+                            label = { Text(a.title, maxLines = 1) },
+                        )
+                    }
                 }
+                Text(
+                    if (selected.size == 1) "1 elegida" else "${selected.size} elegidas",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 2.dp),
+                )
             }
         }
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(96.dp),
-            contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.weight(1f),
-        ) {
             items(selected, key = { it.toString() }) { uri ->
                 Box {
                     AsyncImage(
@@ -221,6 +251,7 @@ fun UploadScreen(vm: MainViewModel) {
         Row(
             Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
