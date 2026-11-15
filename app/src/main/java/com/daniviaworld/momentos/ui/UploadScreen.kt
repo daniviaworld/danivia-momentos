@@ -25,6 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -55,12 +60,18 @@ import com.daniviaworld.momentos.image.ImageProcessor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UploadScreen(vm: MainViewModel) {
     val context = LocalContext.current
     var selected by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var enhance by rememberSaveable { mutableStateOf(vm.prefs.autoEnhance) }
     var launchedOnce by rememberSaveable { mutableStateOf(false) }
+    val albums by vm.albums.collectAsState()
+    // por defecto, el álbum que se está viendo en la pantalla principal
+    var albumId by remember {
+        mutableStateOf(vm.albumFilter.takeIf { it != ALL_ALBUMS && it != NO_ALBUM })
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 50)
@@ -140,6 +151,34 @@ fun UploadScreen(vm: MainViewModel) {
             }
         }
 
+        if (albums.isNotEmpty()) {
+            Text(
+                "Álbum",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = albumId == null,
+                    onClick = { albumId = null },
+                    label = { Text("📂 Sin álbum") },
+                )
+                albums.forEach { a ->
+                    FilterChip(
+                        selected = albumId == a.id,
+                        onClick = { albumId = a.id },
+                        label = { Text(a.title, maxLines = 1) },
+                    )
+                }
+            }
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Adaptive(96.dp),
             contentPadding = PaddingValues(12.dp),
@@ -176,7 +215,7 @@ fun UploadScreen(vm: MainViewModel) {
             Button(
                 onClick = {
                     val fid = vm.prefs.familyId ?: return@Button
-                    UploadManager.start(context, fid, selected, enhance, vm.prefs.myName.ifBlank { "Alguien" })
+                    UploadManager.start(context, fid, selected, enhance, vm.prefs.myName.ifBlank { "Alguien" }, albumId)
                     vm.screen = Screen.Home
                 },
                 modifier = Modifier.weight(2f),

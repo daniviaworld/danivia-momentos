@@ -52,6 +52,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.daniviaworld.momentos.data.Photo
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.launch
@@ -67,6 +69,7 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
     var showUi by remember { mutableStateOf(true) }
     var activePlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var commentsOpen by remember { mutableStateOf(false) }
+    var albumPickFor by remember { mutableStateOf<Photo?>(null) }
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
 
     LaunchedEffect(Unit) { try { focus.requestFocus() } catch (_: Exception) {} }
@@ -141,7 +144,13 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(current.uploaderName, color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        current.uploaderName + (vm.albumOf(current)?.let { "  ·  ${it.title}" } ?: ""),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         shortDateTime(current.createdAt) +
                             (if (current.isVideo) "  ·  vídeo ${formatDuration(current.durationMs)}" else "") +
@@ -168,6 +177,11 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                         IconButton(onClick = { vm.share(current) }) {
                             Icon(Icons.Filled.Share, contentDescription = "Compartir", tint = Color.White)
                         }
+                    }
+                }
+                if (!vm.isTv && vm.isAdmin()) {
+                    IconButton(onClick = { albumPickFor = current }) {
+                        Text("🗂️", fontSize = 20.sp)
                     }
                 }
                 if (!vm.isTv && vm.canDelete(current)) {
@@ -198,6 +212,15 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+    }
+
+    albumPickFor?.let { photo ->
+        AlbumPickerDialog(
+            vm = vm,
+            photoIds = listOf(photo.id),
+            currentAlbumId = photo.albumId,
+            onDismiss = { albumPickFor = null },
+        )
     }
 
     toDelete?.let { photo ->

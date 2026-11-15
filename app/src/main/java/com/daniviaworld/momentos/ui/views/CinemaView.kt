@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.daniviaworld.momentos.data.Album
 import com.daniviaworld.momentos.data.Photo
 import com.daniviaworld.momentos.ui.FocusCard
 import com.daniviaworld.momentos.ui.Night
@@ -56,8 +57,8 @@ private data class Shelf(val title: String, val photos: List<Photo>)
 
 /** Estilo plataforma de cine: portada grande arriba y filas de fotos que se recorren de lado. */
 @Composable
-fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
-    val shelves = remember(photos) { buildShelves(photos) }
+fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, albums: List<Album> = emptyList()) {
+    val shelves = remember(photos, albums) { buildShelves(photos, albums) }
     val heroPhotos = remember(photos) { photos.take(6) }
 
     LazyColumn(
@@ -65,8 +66,8 @@ fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
         contentPadding = PaddingValues(bottom = if (isTv) 32.dp else 96.dp),
     ) {
         item(key = "hero") { Hero(heroPhotos, isTv, onOpen) }
-        shelves.forEach { shelf ->
-            item(key = "s_${shelf.title}") {
+        shelves.forEachIndexed { index, shelf ->
+            item(key = "s_${index}_${shelf.title}") {
                 Column(Modifier.padding(top = if (isTv) 22.dp else 16.dp)) {
                     Text(
                         shelf.title,
@@ -158,9 +159,15 @@ private fun Hero(heroPhotos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit
     }
 }
 
-private fun buildShelves(photos: List<Photo>): List<Shelf> {
+private fun buildShelves(photos: List<Photo>, albums: List<Album>): List<Shelf> {
     val shelves = mutableListOf<Shelf>()
     shelves += Shelf("Recién subidas", photos.take(20))
+
+    // Una fila por álbum (los más nuevos primero)
+    albums.forEach { a ->
+        val inAlbum = photos.filter { it.albumId == a.id }
+        if (inAlbum.isNotEmpty()) shelves += Shelf(a.title, inAlbum.take(60))
+    }
 
     val loved = photos.filter { it.likes.isNotEmpty() }.sortedByDescending { it.likes.size }
     if (loved.isNotEmpty()) shelves += Shelf("Las más queridas ❤️", loved.take(20))

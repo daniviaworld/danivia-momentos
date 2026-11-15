@@ -103,6 +103,10 @@ private fun ReadyContent(vm: MainViewModel) {
             BackHandler { vm.screen = Screen.Home }
             FamilyScreen(vm)
         }
+        Screen.Albums -> {
+            BackHandler { vm.screen = Screen.Home }
+            AlbumsScreen(vm)
+        }
         is Screen.Detail -> {
             BackHandler { vm.screen = Screen.Home }
             if (photos.isEmpty()) {

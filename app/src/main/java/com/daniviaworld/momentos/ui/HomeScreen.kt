@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -64,9 +67,13 @@ import com.daniviaworld.momentos.ui.views.SlideshowView
 
 @Composable
 fun HomeScreen(vm: MainViewModel) {
-    val photos by vm.photos.collectAsState()
+    val allPhotos by vm.photos.collectAsState()
+    val albums by vm.albums.collectAsState()
     val family by vm.family.collectAsState()
     val upload by UploadManager.progress.collectAsState()
+    val photos = remember(allPhotos, vm.albumFilter) { vm.filterPhotos(allPhotos) }
+    var picking by remember { mutableStateOf(false) }
+    val canSelect = vm.isAdmin() && !vm.isTv
 
     // Permiso de notificaciones (Android 13+) para avisar de fotos nuevas
     if (!vm.isTv && Build.VERSION.SDK_INT >= 33) {
@@ -79,7 +86,10 @@ fun HomeScreen(vm: MainViewModel) {
         }
     }
 
-    val open: (Photo) -> Unit = { vm.screen = Screen.Detail(it.id) }
+    val open: (Photo) -> Unit = {
+        if (vm.selecting) vm.toggleSelected(it) else vm.screen = Screen.Detail(it.id)
+    }
+    BackHandler(enabled = vm.selecting) { vm.clearSelection() }
 
     // TV: "Atrás" en la pantalla principal lleva a la fila de modos (nunca te quedas atrapado en una vista)
     val modesFocus = remember { FocusRequester() }
@@ -93,12 +103,21 @@ fun HomeScreen(vm: MainViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Header(
-                title = family?.name ?: "DANIVIA Momentos",
-                isTv = vm.isTv,
-                count = countLabel(photos),
-                onFamily = { vm.screen = Screen.FamilyInfo },
-            )
+            if (vm.selecting) {
+                SelectionBar(
+                    count = vm.selectedIds.size,
+                    onClose = { vm.clearSelection() },
+                    onMove = { picking = true },
+                )
+            } else {
+                Header(
+                    title = family?.name ?: "DANIVIA Momentos",
+                    isTv = vm.isTv,
+                    count = countLabel(allPhotos),
+                    onFamily = { vm.screen = Screen.FamilyInfo },
+                    onAlbums = { vm.screen = Screen.Albums },
+                )
+            }
             ModeSelector(
                 current = vm.viewMode,
                 isTv = vm.isTv,
@@ -106,16 +125,36 @@ fun HomeScreen(vm: MainViewModel) {
                 onFocusChange = { modesHaveFocus = it },
             ) { vm.selectViewMode(it) }
 
+            AlbumFilterRow(vm, albums, allPhotos)
+
             if (upload.total > 0) UploadBanner(upload) { UploadManager.clear() }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (photos.isEmpty()) {
-                    EmptyState(vm.isTv)
+                    if (allPhotos.isEmpty()) EmptyState(vm.isTv)
+                    else Text(
+                        "Este álbum está vacío",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(32.dp),
+                    )
                 } else {
                     when (vm.viewMode) {
-                        ViewMode.GRID -> GridView(photos, vm.isTv, open)
+                        ViewMode.GRID -> GridView(
+                            photos = photos,
+                            isTv = vm.isTv,
+                            onOpen = open,
+                            selectedIds = vm.selectedIds,
+                            onLongPress = if (canSelect) ({ p -> vm.toggleSelected(p) }) else null,
+                        )
                         ViewMode.CAROUSEL -> CarouselView(photos, vm.isTv, open)
-                        ViewMode.CINEMA -> CinemaView(photos, vm.isTv, open)
+                        ViewMode.CINEMA -> CinemaView(
+                            photos,
+                            vm.isTv,
+                            open,
+                            albums = if (vm.albumFilter == ALL_ALBUMS) albums else emptyList(),
+                        )
                         ViewMode.CUBE -> CubeView(photos, vm.isTv, open)
                         ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open)
                     }
@@ -123,7 +162,7 @@ fun HomeScreen(vm: MainViewModel) {
             }
         }
 
-        if (!vm.isTv) {
+        if (!vm.isTv && !vm.selecting) {
             ExtendedFloatingActionButton(
                 onClick = { vm.screen = Screen.Upload },
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -136,10 +175,39 @@ fun HomeScreen(vm: MainViewModel) {
             )
         }
     }
+
+    if (picking) {
+        AlbumPickerDialog(
+            vm = vm,
+            photoIds = vm.selectedIds.toList(),
+            currentAlbumId = null,
+            onDismiss = { picking = false },
+        )
+    }
 }
 
 @Composable
-private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> Unit) {
+private fun SelectionBar(count: Int, onClose: () -> Unit, onMove: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Cancelar selección") }
+        Text(
+            if (count == 1) "1 seleccionada" else "$count seleccionadas",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        Button(onClick = onMove) { Text("Mover a álbum") }
+    }
+}
+
+@Composable
+private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> Unit, onAlbums: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -181,12 +249,15 @@ private fun Header(title: String, isTv: Boolean, count: String, onFamily: () -> 
         }
         Spacer(Modifier.width(8.dp))
         if (isTv) {
+            OutlinedButton(onClick = onAlbums) { Text("🗂️  Álbumes") }
+            Spacer(Modifier.width(12.dp))
             OutlinedButton(onClick = onFamily) {
                 Icon(Icons.Filled.Person, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Familia")
             }
         } else {
+            IconButton(onClick = onAlbums) { Text("🗂️", fontSize = 22.sp) }
             IconButton(onClick = onFamily) {
                 Icon(Icons.Filled.Person, contentDescription = "Familia")
             }

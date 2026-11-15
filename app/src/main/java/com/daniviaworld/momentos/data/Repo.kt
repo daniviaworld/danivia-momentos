@@ -189,7 +189,57 @@ object Repo {
             durationMs = getLong("durationMs") ?: 0L,
             likes = (get("likes") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             commentCount = (getLong("commentCount") ?: 0L).toInt().coerceAtLeast(0),
+            albumId = getString("albumId")?.takeIf { it.isNotBlank() },
         )
+    }
+
+    // ---------- Álbumes ----------
+
+    private fun albums(fid: String) = families().document(fid).collection("albums")
+
+    fun listenAlbums(fid: String, onChange: (List<Album>) -> Unit): ListenerRegistration =
+        albums(fid).orderBy("createdAt", Query.Direction.DESCENDING).addSnapshotListener { snap, _ ->
+            if (snap == null) return@addSnapshotListener
+            onChange(snap.documents.map {
+                Album(
+                    id = it.id,
+                    name = it.getString("name") ?: "Álbum",
+                    emoji = it.getString("emoji") ?: "",
+                    createdAt = it.getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        ?.toDate()?.time ?: System.currentTimeMillis(),
+                )
+            })
+        }
+
+    suspend fun createAlbum(fid: String, name: String, emoji: String): String {
+        val ref = albums(fid).document()
+        ref.set(
+            mapOf(
+                "name" to name.trim().take(40),
+                "emoji" to emoji,
+                "createdAt" to FieldValue.serverTimestamp(),
+            )
+        ).await()
+        return ref.id
+    }
+
+    suspend fun updateAlbum(fid: String, albumId: String, name: String, emoji: String) {
+        albums(fid).document(albumId).update(mapOf("name" to name.trim().take(40), "emoji" to emoji)).await()
+    }
+
+    /** Borra el álbum; sus fotos pasan a "Sin álbum" (no se borra ninguna foto). */
+    suspend fun deleteAlbum(fid: String, albumId: String, photoIds: List<String>) {
+        movePhotos(fid, photoIds, null)
+        albums(fid).document(albumId).delete().await()
+    }
+
+    /** Cambia de álbum varias fotos a la vez (null = sin álbum). */
+    suspend fun movePhotos(fid: String, photoIds: List<String>, albumId: String?) {
+        photoIds.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { pid -> batch.update(photoRef(fid, pid), "albumId", albumId ?: FieldValue.delete()) }
+            batch.commit().await()
+        }
     }
 
     // ---------- Me gusta y comentarios ----------
@@ -269,16 +319,19 @@ object Repo {
         }
     }
 
+    private fun albumField(albumId: String?): Map<String, Any> =
+        if (albumId.isNullOrBlank()) emptyMap() else mapOf("albumId" to albumId)
+
     fun isVideo(context: Context, uri: Uri): Boolean =
         context.contentResolver.getType(uri)?.startsWith("video/") == true
 
     /** Sube una foto o un vídeo (según lo que sea). */
-    suspend fun uploadMedia(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String) {
-        if (isVideo(context, uri)) uploadVideo(context, fid, uri, enhance, myName)
-        else uploadPhoto(context, fid, uri, enhance, myName)
+    suspend fun uploadMedia(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
+        if (isVideo(context, uri)) uploadVideo(context, fid, uri, enhance, myName, albumId)
+        else uploadPhoto(context, fid, uri, enhance, myName, albumId)
     }
 
-    private suspend fun uploadVideo(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String) {
+    private suspend fun uploadVideo(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
         val me = ensureSignedIn()
         val prepared = VideoProcessor.prepare(context, uri, enhance)
         try {
@@ -321,14 +374,14 @@ object Repo {
                     "height" to prepared.height,
                     "durationMs" to prepared.durationMs,
                     "enhanced" to prepared.enhanced,
-                )
+                ) + albumField(albumId)
             ).await()
         } finally {
             if (prepared.isTemp) prepared.file.delete()
         }
     }
 
-    private suspend fun uploadPhoto(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String) {
+    private suspend fun uploadPhoto(context: Context, fid: String, uri: Uri, enhance: Boolean, myName: String, albumId: String?) {
         val me = ensureSignedIn()
         val processed = withContext(Dispatchers.Default) {
             ImageProcessor.process(context, uri, enhance)
@@ -362,7 +415,7 @@ object Repo {
                 "width" to processed.width,
                 "height" to processed.height,
                 "enhanced" to enhance,
-            )
+            ) + albumField(albumId)
         ).await()
     }
 

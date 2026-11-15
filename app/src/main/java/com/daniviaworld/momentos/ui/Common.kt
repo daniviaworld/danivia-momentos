@@ -4,7 +4,9 @@ import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,12 +104,14 @@ fun Prefetch(urls: List<String>) {
 }
 
 /** Tarjeta que se agranda y se marca al tener el foco (mando de la TV) y se puede pulsar. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FocusCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(14.dp),
     focusScale: Float = 1.08f,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -119,7 +123,10 @@ fun FocusCard(
             .clip(shape)
             .then(if (focused) Modifier.border(3.dp, Color.White, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
-            .clickable(onClick = onClick),
+            .then(
+                if (onLongClick != null) Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                else Modifier.clickable(onClick = onClick)
+            ),
         contentAlignment = Alignment.Center,
         content = content,
     )

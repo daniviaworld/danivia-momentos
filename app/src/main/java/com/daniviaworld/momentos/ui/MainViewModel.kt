@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.daniviaworld.momentos.data.Album
 import com.daniviaworld.momentos.data.Comment
 import com.daniviaworld.momentos.data.Family
 import com.daniviaworld.momentos.data.Member
@@ -33,8 +34,12 @@ sealed interface Screen {
     data object Home : Screen
     data object Upload : Screen
     data object FamilyInfo : Screen
+    data object Albums : Screen
     data class Detail(val photoId: String) : Screen
 }
+
+const val ALL_ALBUMS = "__all__"
+const val NO_ALBUM = "__none__"
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -64,6 +69,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val family: StateFlow<Family?> = _family
     private val _members = MutableStateFlow<List<Member>>(emptyList())
     val members: StateFlow<List<Member>> = _members
+    private val _albums = MutableStateFlow<List<Album>>(emptyList())
+    val albums: StateFlow<List<Album>> = _albums
+
+    /** Filtro de álbum en la pantalla principal: ALL_ALBUMS, NO_ALBUM o el id de un álbum. */
+    var albumFilter by mutableStateOf(ALL_ALBUMS)
+
+    /** Selección múltiple (admin) para mover fotos de álbum. */
+    var selectedIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+    val selecting: Boolean get() = selectedIds.isNotEmpty()
 
     private val listeners = mutableListOf<ListenerRegistration>()
     private var pairingListener: ListenerRegistration? = null
@@ -160,6 +175,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         listeners += Repo.listenFamily(fid) { _family.value = it }
         listeners += Repo.listenMembers(fid) { _members.value = it }
+        listeners += Repo.listenAlbums(fid) { list ->
+            _albums.value = list
+            // si borran el álbum que estaba filtrado, volvemos a "Todas"
+            if (albumFilter != ALL_ALBUMS && albumFilter != NO_ALBUM && list.none { it.id == albumFilter }) {
+                albumFilter = ALL_ALBUMS
+            }
+        }
         Repo.listenMyMembership(fid) { stillMember ->
             if (!stillMember) kicked()
         }?.let { listeners += it }
@@ -180,6 +202,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _photos.value = emptyList()
         _family.value = null
         _members.value = emptyList()
+        _albums.value = emptyList()
+        albumFilter = ALL_ALBUMS
+        selectedIds = emptySet()
         screen = Screen.Home
     }
 
@@ -281,6 +306,55 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val fid = prefs.familyId ?: return@runBusy
         Repo.deletePhoto(fid, photo)
     }
+
+    // ---------- Álbumes ----------
+
+    fun filterPhotos(all: List<Photo>): List<Photo> = when (albumFilter) {
+        ALL_ALBUMS -> all
+        NO_ALBUM -> all.filter { it.albumId == null }
+        else -> all.filter { it.albumId == albumFilter }
+    }
+
+    fun toggleSelected(photo: Photo) {
+        if (!isAdmin()) return
+        selectedIds = if (photo.id in selectedIds) selectedIds - photo.id else selectedIds + photo.id
+    }
+
+    fun clearSelection() {
+        selectedIds = emptySet()
+    }
+
+    /** Crea un álbum y, si se indica, mete en él esas fotos. */
+    fun createAlbum(name: String, emoji: String, movePhotoIds: List<String> = emptyList()) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        val id = Repo.createAlbum(fid, name, emoji)
+        if (movePhotoIds.isNotEmpty()) {
+            Repo.movePhotos(fid, movePhotoIds, id)
+            selectedIds = emptySet()
+        }
+    }
+
+    fun updateAlbum(album: Album, name: String, emoji: String) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        Repo.updateAlbum(fid, album.id, name, emoji)
+    }
+
+    fun deleteAlbum(album: Album) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        val ids = _photos.value.filter { it.albumId == album.id }.map { it.id }
+        Repo.deleteAlbum(fid, album.id, ids)
+    }
+
+    /** Mueve fotos a un álbum (null = sin álbum). */
+    fun movePhotos(photoIds: List<String>, albumId: String?) = runBusy {
+        val fid = prefs.familyId ?: return@runBusy
+        Repo.movePhotos(fid, photoIds, albumId)
+        selectedIds = emptySet()
+        val name = _albums.value.firstOrNull { it.id == albumId }?.title ?: "Sin álbum"
+        message = if (photoIds.size == 1) "Movida a «$name»." else "${photoIds.size} movidas a «$name»."
+    }
+
+    fun albumOf(photo: Photo): Album? = photo.albumId?.let { id -> _albums.value.firstOrNull { it.id == id } }
 
     // ---------- Compartir ----------
 

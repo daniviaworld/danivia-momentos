@@ -20,7 +20,18 @@ data class Photo(
     /** uids de quien ha dado me gusta */
     val likes: List<String> = emptyList(),
     val commentCount: Int = 0,
+    /** Álbum al que pertenece (null = sin álbum). */
+    val albumId: String? = null,
 )
+
+data class Album(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val createdAt: Long,
+) {
+    val title: String get() = if (emoji.isBlank()) name else "$emoji $name"
+}
 
 data class Comment(
     val id: String,
