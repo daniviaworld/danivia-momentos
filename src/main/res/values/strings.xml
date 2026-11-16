@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DANIVIA Momentos</string>
+    <string name="widget_name">Foto del día</string>
+    <string name="widget_description">Una foto de la familia cada día</string>
+    <string name="widget_empty">Abre DANIVIA Momentos para empezar</string>
+    <string name="widget_badge">FOTO DEL DÍA</string>
+</resources>
