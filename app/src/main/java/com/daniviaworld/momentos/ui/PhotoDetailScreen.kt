@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -216,19 +219,36 @@ fun PhotoDetailScreen(vm: MainViewModel, photos: List<Photo>, startIndex: Int) {
                         }
                     }
                 }
-                if (vm.canEdit(current) && (!current.isVideo || current.videoUrl.isNotBlank())) {
-                    IconButton(onClick = { editFor = current }) {
-                        Text(if (current.isVideo) "🎵" else "✏️", fontSize = 20.sp)
-                    }
-                }
-                if (!vm.isTv && vm.isAdmin()) {
-                    IconButton(onClick = { albumPickFor = current }) {
-                        Text("🗂️", fontSize = 20.sp)
-                    }
-                }
-                if (!vm.isTv && vm.canDelete(current)) {
-                    IconButton(onClick = { toDelete = current }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Borrar", tint = Color.White)
+                // Menú ⋮ con lo demás (editar, mover de álbum, borrar), para no llenar la barra de iconos
+                val canEditThis = vm.canEdit(current) && (!current.isVideo || current.videoUrl.isNotBlank())
+                val canMove = !vm.isTv && vm.isAdmin()
+                val canRemove = !vm.isTv && vm.canDelete(current)
+                if (canEditThis || canMove || canRemove) {
+                    var more by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { more = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Más opciones", tint = Color.White)
+                        }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            if (canEditThis) {
+                                DropdownMenuItem(
+                                    text = { Text(if (current.isVideo) "🎵  Cambiar la música" else "✏️  Editar (marco, pegatinas)") },
+                                    onClick = { more = false; editFor = current },
+                                )
+                            }
+                            if (canMove) {
+                                DropdownMenuItem(
+                                    text = { Text("🗂️  Mover a otro álbum") },
+                                    onClick = { more = false; albumPickFor = current },
+                                )
+                            }
+                            if (canRemove) {
+                                DropdownMenuItem(
+                                    text = { Text("🗑️  Borrar", color = MaterialTheme.colorScheme.error) },
+                                    onClick = { more = false; toDelete = current },
+                                )
+                            }
+                        }
                     }
                 }
             }

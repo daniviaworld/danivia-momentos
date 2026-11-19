@@ -99,6 +99,85 @@ fun FamilyScreen(vm: MainViewModel) {
             if (showHelp) HelpDialog(vm.isTv) { showHelp = false }
         }
 
+        if (!vm.isTv) item { SectionTitle("👤 Tú") }
+
+        // Mi nombre (se puede cambiar; también cambia en las fotos que ya he subido)
+        if (!vm.isTv) {
+            item {
+                var editingName by remember { mutableStateOf(false) }
+                var newName by remember { mutableStateOf(vm.prefs.myName) }
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("👤 Tu nombre", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        if (!editingName) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    vm.myDisplayName.ifBlank { vm.prefs.myName.ifBlank { "Sin nombre" } },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(onClick = {
+                                    newName = vm.myDisplayName.ifBlank { vm.prefs.myName }
+                                    editingName = true
+                                }) { Text("Cambiar") }
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = { newName = it.take(40) },
+                                singleLine = true,
+                                label = { Text("Cómo te verá la familia") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                TextButton(onClick = { editingName = false }) { Text("Cancelar") }
+                                TextButton(
+                                    onClick = {
+                                        vm.renameMe(newName)
+                                        editingName = false
+                                    },
+                                    enabled = newName.isNotBlank() && !vm.busy,
+                                ) { Text("Guardar") }
+                            }
+                            Text(
+                                "También se cambia en las fotos y vídeos que ya has subido.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mejora automática de las fotos al subirlas
+        if (!vm.isTv) {
+            item {
+                var enhance by remember { mutableStateOf(vm.prefs.autoEnhance) }
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("✨ Mejora automática de fotos", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (enhance) "Encendida: al subir, la app arregla luz, color y nitidez."
+                                else "Apagada: las fotos se suben tal cual las hiciste.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = enhance, onCheckedChange = {
+                            enhance = it
+                            vm.prefs.autoEnhance = it
+                        })
+                    }
+                }
+            }
+        }
+
+        item { SectionTitle("👨‍👩‍👧 La familia") }
+
         // Código familiar
         item {
             Card(Modifier.fillMaxWidth()) {
@@ -168,29 +247,110 @@ fun FamilyScreen(vm: MainViewModel) {
             }
         }
 
-        // Mejora automática de las fotos al subirlas
-        if (!vm.isTv) {
-            item {
-                var enhance by remember { mutableStateOf(vm.prefs.autoEnhance) }
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("✨ Mejora automática de fotos", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                if (enhance) "Encendida: al subir, la app arregla luz, color y nitidez."
-                                else "Apagada: las fotos se suben tal cual las hiciste.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+        item {
+            Text(
+                "Miembros (${members.size})",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        items(members, key = { it.uid }) { m ->
+            val isAdmin = family?.admins?.contains(m.uid) == true
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (m.device == "tv") "📺" else "📱", fontSize = 24.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            m.name + if (m.uid == me) " (tú)" else "",
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (isAdmin) Text("Administrador", color = Orange, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (iAmAdmin && m.uid != me) {
+                        if (!isAdmin && m.device != "tv") {
+                            TextButton(onClick = { vm.makeAdmin(m.uid) }) { Text("Hacer admin") }
                         }
-                        Switch(checked = enhance, onCheckedChange = {
-                            enhance = it
-                            vm.prefs.autoEnhance = it
-                        })
+                        TextButton(onClick = { confirmRemove = m }) {
+                            Text("Quitar", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
         }
+
+        item { SectionTitle("🎵 Música") }
+
+        // Música de fondo para diapositivas y cubo (con escucha previa)
+        item {
+            var preview by remember { mutableStateOf("") }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("🎵 Música de fondo", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Suena en Diapositivas y en el Cubo 3D. Cada álbum puede tener la suya.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    MusicChips(selected = vm.backgroundMusic, onSelect = {
+                        vm.setBackgroundMusicKey(it)
+                        preview = it
+                    }, songs = songs)
+                    if (preview.isNotBlank()) {
+                        BackgroundMusic(vm.musicUri(preview))
+                        TextButton(onClick = { preview = "" }) { Text("⏹ Parar la escucha") }
+                    }
+
+                    Text(
+                        "Música incluida: Tanner Helland (tannerhelland.com) · licencia CC BY 4.0",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    // Biblioteca musical de la familia: canciones de verdad subidas por el admin
+                    Spacer(Modifier.height(14.dp))
+                    Text("Música de la familia", fontWeight = FontWeight.Bold)
+                    if (songs.isEmpty()) {
+                        Text(
+                            if (iAmAdmin && !vm.isTv) "Añade canciones de tu móvil y sonarán en todos los aparatos, también en la tele."
+                            else "Todavía no hay canciones de la familia.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    songs.forEach { s ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎵 ${s.name}", modifier = Modifier.weight(1f), maxLines = 1)
+                            if (iAmAdmin && !vm.isTv) {
+                                TextButton(onClick = { vm.deleteSong(s) }) {
+                                    Text("Quitar", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    if (iAmAdmin && !vm.isTv) {
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = { pickSong.launch(arrayOf("audio/*")) },
+                            enabled = !vm.busy,
+                        ) { Text("➕ Añadir canción del móvil") }
+                        Text(
+                            "Música libre y gratis: Pixabay Music o la Biblioteca de audio de YouTube. Máx. 20 MB por canción.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        item { SectionTitle("📺 Tele y salvapantallas") }
 
         // Salvapantallas (sobre todo para la tele)
         item {
@@ -261,157 +421,7 @@ fun FamilyScreen(vm: MainViewModel) {
             }
         }
 
-        // Música de fondo para diapositivas y cubo (con escucha previa)
-        item {
-            var preview by remember { mutableStateOf("") }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp)) {
-                    Text("🎵 Música de fondo", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Suena en Diapositivas y en el Cubo 3D. Cada álbum puede tener la suya.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    MusicChips(selected = vm.backgroundMusic, onSelect = {
-                        vm.setBackgroundMusicKey(it)
-                        preview = it
-                    }, songs = songs)
-                    if (preview.isNotBlank()) {
-                        BackgroundMusic(vm.musicUri(preview))
-                        TextButton(onClick = { preview = "" }) { Text("⏹ Parar la escucha") }
-                    }
-
-                    Text(
-                        "Música incluida: Tanner Helland (tannerhelland.com) · licencia CC BY 4.0",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    // Biblioteca musical de la familia: canciones de verdad subidas por el admin
-                    Spacer(Modifier.height(14.dp))
-                    Text("Música de la familia", fontWeight = FontWeight.Bold)
-                    if (songs.isEmpty()) {
-                        Text(
-                            if (iAmAdmin && !vm.isTv) "Añade canciones de tu móvil y sonarán en todos los aparatos, también en la tele."
-                            else "Todavía no hay canciones de la familia.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    songs.forEach { s ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🎵 ${s.name}", modifier = Modifier.weight(1f), maxLines = 1)
-                            if (iAmAdmin && !vm.isTv) {
-                                TextButton(onClick = { vm.deleteSong(s) }) {
-                                    Text("Quitar", color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
-                    }
-                    if (iAmAdmin && !vm.isTv) {
-                        Spacer(Modifier.height(6.dp))
-                        OutlinedButton(
-                            onClick = { pickSong.launch(arrayOf("audio/*")) },
-                            enabled = !vm.busy,
-                        ) { Text("➕ Añadir canción del móvil") }
-                        Text(
-                            "Música libre y gratis: Pixabay Music o la Biblioteca de audio de YouTube. Máx. 20 MB por canción.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-
-        // Mi nombre (se puede cambiar; también cambia en las fotos que ya he subido)
-        if (!vm.isTv) {
-            item {
-                var editingName by remember { mutableStateOf(false) }
-                var newName by remember { mutableStateOf(vm.prefs.myName) }
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("👤 Tu nombre", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(6.dp))
-                        if (!editingName) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    vm.myDisplayName.ifBlank { vm.prefs.myName.ifBlank { "Sin nombre" } },
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                TextButton(onClick = {
-                                    newName = vm.myDisplayName.ifBlank { vm.prefs.myName }
-                                    editingName = true
-                                }) { Text("Cambiar") }
-                            }
-                        } else {
-                            OutlinedTextField(
-                                value = newName,
-                                onValueChange = { newName = it.take(40) },
-                                singleLine = true,
-                                label = { Text("Cómo te verá la familia") },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                                TextButton(onClick = { editingName = false }) { Text("Cancelar") }
-                                TextButton(
-                                    onClick = {
-                                        vm.renameMe(newName)
-                                        editingName = false
-                                    },
-                                    enabled = newName.isNotBlank() && !vm.busy,
-                                ) { Text("Guardar") }
-                            }
-                            Text(
-                                "También se cambia en las fotos y vídeos que ya has subido.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Text(
-                "Miembros (${members.size})",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-
-        items(members, key = { it.uid }) { m ->
-            val isAdmin = family?.admins?.contains(m.uid) == true
-            Card(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (m.device == "tv") "📺" else "📱", fontSize = 24.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            m.name + if (m.uid == me) " (tú)" else "",
-                            fontWeight = FontWeight.Bold,
-                        )
-                        if (isAdmin) Text("Administrador", color = Orange, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (iAmAdmin && m.uid != me) {
-                        if (!isAdmin && m.device != "tv") {
-                            TextButton(onClick = { vm.makeAdmin(m.uid) }) { Text("Hacer admin") }
-                        }
-                        TextButton(onClick = { confirmRemove = m }) {
-                            Text("Quitar", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
-        }
+        item { SectionTitle("⚙️ La app") }
 
         item {
             Spacer(Modifier.height(8.dp))
@@ -487,4 +497,16 @@ private fun ScreensaverChips(vm: MainViewModel, albums: List<Album>) {
             )
         }
     }
+}
+
+/** Título de sección en Familia. */
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        color = Orange,
+        modifier = Modifier.padding(top = 14.dp, bottom = 2.dp),
+    )
 }

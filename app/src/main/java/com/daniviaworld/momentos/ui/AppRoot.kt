@@ -26,6 +26,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBar
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -117,6 +122,13 @@ private fun ReadyContent(vm: MainViewModel) {
     }
     // Guarda el estado de cada pantalla (dónde estabas en la lista) para volver justo ahí
     val saved = rememberSaveableStateHolder()
+    LaunchedEffect(Unit) { vm.refreshMemories() }
+    // Móvil: barra de abajo para moverse entre Fotos, Álbumes, Recuerdos y Familia
+    val current = vm.screen
+    val withTabs = !vm.isTv && !vm.selecting &&
+        (current == Screen.Home || current == Screen.Albums || current == Screen.Memories || current == Screen.FamilyInfo)
+    Column(Modifier.fillMaxSize()) {
+    Box(Modifier.weight(1f)) {
     when (val s = vm.screen) {
         Screen.Home -> saved.SaveableStateProvider("home") { HomeScreen(vm) }
         Screen.Upload -> {
@@ -154,6 +166,9 @@ private fun ReadyContent(vm: MainViewModel) {
             }
         }
     }
+    }
+    if (withTabs) PhoneTabs(vm)
+    }
 }
 
 @Composable
@@ -170,5 +185,34 @@ private fun ErrorScreen(message: String, onRetry: () -> Unit) {
         Text(message, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
         Button(onClick = onRetry) { Text("Reintentar") }
+    }
+}
+
+/** Barra de abajo del móvil. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PhoneTabs(vm: MainViewModel) {
+    val newMemory = vm.memories.any { !it.seen }
+    NavigationBar(tonalElevation = 3.dp) {
+        listOf(
+            Triple(Screen.Home, "🏠", "Fotos"),
+            Triple(Screen.Albums, "🗂️", "Álbumes"),
+            Triple(Screen.Memories, "🎬", "Recuerdos"),
+            Triple(Screen.FamilyInfo, "👨‍👩‍👧", "Familia"),
+        ).forEach { (target, icon, label) ->
+            NavigationBarItem(
+                selected = vm.screen == target,
+                onClick = {
+                    if (target == Screen.Home && vm.screen == Screen.Home && vm.albumFilter != ALL_ALBUMS) vm.backFromAlbum()
+                    vm.screen = target
+                },
+                icon = {
+                    BadgedBox(badge = { if (target == Screen.Memories && newMemory) Badge() }) {
+                        Text(icon, fontSize = 20.sp)
+                    }
+                },
+                label = { Text(label, maxLines = 1) },
+            )
+        }
     }
 }

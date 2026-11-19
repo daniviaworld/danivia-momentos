@@ -382,6 +382,9 @@ private fun PhoneTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(mode.icon, fontSize = 17.sp)
+                    Spacer(Modifier.width(6.dp))
+                    // el nombre del modo, para que se entienda qué es ese botón
+                    Text(mode.label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                     Spacer(Modifier.width(4.dp))
                     Text("▾", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -410,9 +413,8 @@ private fun PhoneTopBar(
                 }
             }
         }
-        IconButton(onClick = onMemories) { Text("🎬", fontSize = 20.sp) }
-        IconButton(onClick = onAlbums) { Text("🗂️", fontSize = 20.sp) }
-        IconButton(onClick = onFamily) { Icon(Icons.Filled.Person, contentDescription = "Familia") }
+        // Álbumes, Recuerdos y Familia están en la barra de abajo
+        Spacer(Modifier.width(8.dp))
     }
 }
 
