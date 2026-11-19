@@ -77,13 +77,30 @@ class MemoriesWorker(context: Context, params: WorkerParameters) : CoroutineWork
             if (moment == null) {
                 return Result.success(workDataOf("found" to false))
             }
+            // música: preferimos las canciones de la familia (las de verdad); si no hay, las incluidas
+            val songs = try {
+                Repo.fetchSongs(fid)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val musicUri = if (songs.isNotEmpty()) {
+                val song = songs[Math.floorMod(moment.key.hashCode(), songs.size)]
+                // se descarga antes, para montar el vídeo sin cortes
+                val f = File(ctx.cacheDir, "recuerdo_musica.mp3")
+                try {
+                    com.daniviaworld.momentos.share.Sharer.download(song.url, f)
+                    android.net.Uri.fromFile(f)
+                } catch (_: Exception) {
+                    null
+                }
+            } else null
             val track = MusicLibrary.byKey(moment.music) ?: MusicLibrary.tracks.first()
             val video = AlbumVideoMaker.make(
                 ctx,
                 moment.photos,
                 AlbumVideoMaker.Options(
                     title = moment.title,
-                    musicUri = MusicLibrary.uri(ctx, track),
+                    musicUri = musicUri ?: MusicLibrary.uri(ctx, track),
                     secondsPerPhoto = 3,
                     maxPhotos = 20,
                 ),

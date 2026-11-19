@@ -43,12 +43,39 @@ object Memories {
 
     private fun score(p: Photo) = p.likes.size * 2 + p.reactions.size * 2 + p.commentCount + 1
 
+    /**
+     * Sólo fotos "decentes": con algún me gusta o reacción, con buena resolución
+     * y que no parezcan capturas de pantalla (muy alargadas).
+     */
+    private fun decent(p: Photo): Boolean {
+        if (p.isVideo) return false
+        if (p.likes.isEmpty() && p.reactions.isEmpty()) return false
+        if (p.width > 0 && p.height > 0) {
+            if (minOf(p.width, p.height) < 600) return false
+            val r = p.width.toFloat() / p.height
+            if (r < 0.5f || r > 2.1f) return false
+        }
+        return true
+    }
+
+    /** Quita ráfagas: de varias fotos de la misma persona con segundos de diferencia, deja la mejor. */
+    private fun noBursts(list: List<Photo>): List<Photo> {
+        val out = mutableListOf<Photo>()
+        for (p in list.sortedBy { it.createdAt }) {
+            val last = out.lastOrNull()
+            if (last != null && last.uploaderUid == p.uploaderUid && p.createdAt - last.createdAt < 8_000) {
+                if (score(p) > score(last)) out[out.size - 1] = p
+            } else out += p
+        }
+        return out
+    }
+
     private fun cal(millis: Long) = Calendar.getInstance().apply { timeInMillis = millis }
 
     /** Momentos especiales, del más interesante al menos. Sólo fotos (no vídeos). */
     fun findMoments(all: List<Photo>, now: Long = System.currentTimeMillis()): List<Moment> {
-        val photos = all.filter { !it.isVideo }
-        if (photos.size < 4) return emptyList()
+        val photos = noBursts(all.filter { decent(it) })
+        if (photos.size < 3) return emptyList()
         val out = mutableListOf<Moment>()
         val today = cal(now)
         val year = today.get(Calendar.YEAR)
@@ -59,7 +86,7 @@ object Memories {
             val c = cal(it.createdAt)
             c.get(Calendar.YEAR) < year && kotlin.math.abs(c.get(Calendar.DAY_OF_YEAR) - doy) <= 3
         }
-        if (past.size >= 4) {
+        if (past.size >= 3) {
             val years = past.map { cal(it.createdAt).get(Calendar.YEAR) }.distinct().sorted()
             val ago = year - years.last()
             out += Moment(
@@ -76,12 +103,12 @@ object Memories {
         val lm = lastMonth.get(Calendar.MONTH)
         val ly = lastMonth.get(Calendar.YEAR)
         val monthPhotos = photos.filter { val c = cal(it.createdAt); c.get(Calendar.MONTH) == lm && c.get(Calendar.YEAR) == ly }
-        if (monthPhotos.size >= 6) {
+        if (monthPhotos.size >= 5) {
             val name = SimpleDateFormat("MMMM", spanish).format(lastMonth.time)
             out += Moment(
                 key = "mes_${ly}_$lm",
                 title = "Lo mejor de $name",
-                subtitle = "${monthPhotos.size} fotos del mes",
+                subtitle = "Las ${minOf(monthPhotos.size, 20)} fotos más queridas del mes",
                 photos = monthPhotos.sortedByDescending { score(it) }.take(20).sortedBy { it.createdAt },
                 music = if (lm == Calendar.DECEMBER) "navidad" else "alegre",
             )
@@ -90,7 +117,7 @@ object Memories {
         // 3. Un día especial: un día de las últimas 3 semanas con muchas fotos
         val recent = photos.filter { now - it.createdAt in 0..(21L * 24 * 3600 * 1000) }
         val byDay = recent.groupBy { val c = cal(it.createdAt); c.get(Calendar.YEAR) * 1000 + c.get(Calendar.DAY_OF_YEAR) }
-        byDay.entries.filter { it.value.size >= 8 }.sortedByDescending { it.value.size }.firstOrNull()?.let { (dayKey, list) ->
+        byDay.entries.filter { it.value.size >= 5 }.sortedByDescending { it.value.size }.firstOrNull()?.let { (dayKey, list) ->
             val first = list.minByOrNull { it.createdAt }!!
             val dayName = SimpleDateFormat("EEEE d 'de' MMMM", spanish).format(first.createdAt)
             val who = list.map { it.uploaderName }.distinct()
@@ -99,12 +126,12 @@ object Memories {
                 title = "Un día para recordar",
                 subtitle = dayName.replaceFirstChar { it.uppercase() } + if (who.size > 1) " · ${who.size} fotógrafos" else "",
                 photos = list.sortedBy { it.createdAt },
-                music = "fiesta",
+                music = "alegre",
             )
         }
 
         // 4. Los favoritos de la familia: las fotos más queridas de siempre (si hay bastantes con cariño)
-        val loved = photos.filter { it.likes.isNotEmpty() || it.reactions.isNotEmpty() }
+        val loved = photos
         if (loved.size >= 8) {
             out += Moment(
                 key = "favoritas_${year}_${today.get(Calendar.WEEK_OF_YEAR) / 8}", // como mucho cada 2 meses
@@ -184,9 +211,21 @@ object Memories {
         save(context, list(context).map { if (it.key == key) it.copy(seen = true) else it })
     }
 
+    /** Borra el recuerdo; ese momento puede volver a prepararse (con las fotos y reglas de ahora). */
     fun delete(context: Context, key: String) {
         val all = list(context)
         all.firstOrNull { it.key == key }?.let { File(it.videoPath).delete() }
         save(context, all.filter { it.key != key })
+        val sp = context.getSharedPreferences("recuerdos", Context.MODE_PRIVATE)
+        val set = (sp.getStringSet("done", emptySet()) ?: emptySet()) - key
+        sp.edit().putStringSet("done", set).apply()
+    }
+
+    /** Sustituye el vídeo de un recuerdo (p. ej. con otra música). */
+    fun replaceVideo(context: Context, key: String, newVideo: File) {
+        val all = list(context)
+        val m = all.firstOrNull { it.key == key } ?: return
+        newVideo.copyTo(File(m.videoPath), overwrite = true)
+        newVideo.delete()
     }
 }

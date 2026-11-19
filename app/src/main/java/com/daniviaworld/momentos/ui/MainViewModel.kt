@@ -30,6 +30,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.daniviaworld.momentos.media.CollageMaker
 import com.daniviaworld.momentos.media.CollageOptions
+import com.daniviaworld.momentos.media.GifMaker
+import com.daniviaworld.momentos.media.GifOptions
 import com.daniviaworld.momentos.media.PhotoBookMaker
 import com.daniviaworld.momentos.data.UploadManager
 import com.daniviaworld.momentos.update.Updater
@@ -440,6 +442,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Texto mientras se cambia la música de un recuerdo; null = nada en marcha. */
+    var memoryWork by mutableStateOf<String?>(null)
+        private set
+
+    fun changeMemoryMusic(m: Memories.Memory, musicKey: String) {
+        if (memoryWork != null) return
+        val app = getApplication<Application>()
+        memoryWork = "Poniendo la música nueva…"
+        viewModelScope.launch {
+            try {
+                val out = VideoMusic.change(app, m.videoPath, musicUri(musicKey), keepOriginal = false) { text, p ->
+                    memoryWork = "$text ${(p * 100).toInt()}%"
+                }
+                withContext(Dispatchers.IO) { Memories.replaceVideo(app, m.key, out) }
+                message = "🎵 Música cambiada."
+            } catch (e: Exception) {
+                message = "No se pudo cambiar la música: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                memoryWork = null
+                refreshMemories()
+            }
+        }
+    }
+
     fun shareMemory(m: Memories.Memory) {
         Sharer.shareFile(getApplication<Application>(), java.io.File(m.videoPath), "video/mp4", "Compartir recuerdo")
     }
@@ -731,10 +757,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         creation = null
     }
 
+    fun makeGif(album: Album?, photos: List<Photo>, options: GifOptions) {
+        val title = album?.title ?: (_family.value?.name ?: "Momentos")
+        runCreation {
+            creation = Creation.Working("Preparando el GIF…", 0f)
+            val file = GifMaker.make(getApplication<Application>(), photos, title, options) { text, p ->
+                creation = Creation.Working(text, p)
+            }
+            val saved = Sharer.saveToDevice(getApplication<Application>(), file, "image/gif", "image")
+            Creation.Done(file, "image/gif", "gif", saved, album?.id)
+        }
+    }
+
     fun shareCreation() {
         val done = creation as? Creation.Done ?: return
         val title = when (done.kind) {
             "video" -> "Compartir vídeo"
+            "gif" -> "Compartir GIF"
             "collage" -> "Compartir collage"
             else -> "Compartir libro"
         }

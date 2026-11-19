@@ -168,6 +168,13 @@ object Repo {
                 onChange(snap.documents.mapNotNull { it.toPhoto() })
             }
 
+    /** Las canciones de la familia de una vez (para trabajos en segundo plano). */
+    suspend fun fetchSongs(fid: String): List<FamilySong> =
+        families().document(fid).collection("music").get().await().documents.mapNotNull { d ->
+            val url = d.getString("url") ?: return@mapNotNull null
+            FamilySong(d.id, d.getString("name") ?: "Canción", url, d.getString("path") ?: "")
+        }
+
     /** Todas las fotos de una vez (para trabajos en segundo plano, como los recuerdos). */
     suspend fun fetchPhotos(fid: String): List<Photo> =
         families().document(fid).collection("photos")

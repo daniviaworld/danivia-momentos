@@ -83,6 +83,7 @@ fun AlbumsScreen(vm: MainViewModel) {
     var videoFor by remember { mutableStateOf<AlbumCardData?>(null) }
     var collageFor by remember { mutableStateOf<AlbumCardData?>(null) }
     var bookFor by remember { mutableStateOf<AlbumCardData?>(null) }
+    var gifFor by remember { mutableStateOf<AlbumCardData?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -196,6 +197,10 @@ fun AlbumsScreen(vm: MainViewModel) {
                                             onClick = { menu = false; videoFor = card },
                                         )
                                         DropdownMenuItem(
+                                            text = { Text("🎞️  Crear GIF animado") },
+                                            onClick = { menu = false; gifFor = card },
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("🧩  Hacer un collage") },
                                             onClick = { menu = false; collageFor = card },
                                         )
@@ -231,6 +236,17 @@ fun AlbumsScreen(vm: MainViewModel) {
             onCreate = { chosen, options ->
                 collageFor = null
                 vm.makeCollage(card.album, chosen, options)
+            },
+        )
+    }
+    gifFor?.let { card ->
+        GifDialog(
+            title = card.album?.title ?: "Sin álbum",
+            photos = card.photos.filter { !it.isVideo },
+            onDismiss = { gifFor = null },
+            onCreate = { chosen, options ->
+                gifFor = null
+                vm.makeGif(card.album, chosen, options)
             },
         )
     }

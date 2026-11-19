@@ -33,7 +33,10 @@ object VideoMusic {
         val dir = File(app.cacheDir, "videomusic").apply { deleteRecursively(); mkdirs() }
         val input = File(dir, "entrada.mp4")
         withContext(Dispatchers.Main) { onProgress("Descargando el vídeo…", 0.05f) }
-        withContext(Dispatchers.IO) { Sharer.download(videoUrl, input) }
+        withContext(Dispatchers.IO) {
+            if (videoUrl.startsWith("http")) Sharer.download(videoUrl, input)
+            else File(videoUrl).copyTo(input, overwrite = true) // un vídeo del propio aparato (p. ej. un recuerdo)
+        }
 
         var music = musicUri
         if (music != null && (music.scheme == "https" || music.scheme == "http")) {

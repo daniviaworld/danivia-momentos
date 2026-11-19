@@ -69,6 +69,7 @@ fun MemoriesScreen(vm: MainViewModel) {
     LaunchedEffect(Unit) { vm.refreshMemories() }
     var playing by remember { mutableStateOf<Memories.Memory?>(null) }
     var uploading by remember { mutableStateOf<Memories.Memory?>(null) }
+    var musicFor by remember { mutableStateOf<Memories.Memory?>(null) }
     val list = vm.memories
     val day = remember { SimpleDateFormat("d 'de' MMMM", Locale("es", "ES")) }
 
@@ -101,7 +102,7 @@ fun MemoriesScreen(vm: MainViewModel) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            "Busca: «Tal día como hoy», lo mejor del mes pasado, un día con muchas fotos y las favoritas de la familia.",
+                            "Usa sólo fotos con ❤️ me gusta o reacciones (sin capturas ni ráfagas repetidas) y la música de la familia. Busca: «Tal día como hoy», lo mejor del mes pasado, un gran día y las favoritas. Si uno no te gusta, bórralo y pide otro.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(Modifier.height(10.dp))
@@ -114,6 +115,15 @@ fun MemoriesScreen(vm: MainViewModel) {
                         } else {
                             Button(onClick = { vm.prepareMemoryNow() }) { Text("✨ Prepárame uno ahora") }
                         }
+                    }
+                }
+            }
+            vm.memoryWork?.let { w ->
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(w)
                     }
                 }
             }
@@ -181,6 +191,7 @@ fun MemoriesScreen(vm: MainViewModel) {
                             }) { Text("▶ Ver") }
                             if (!vm.isTv) {
                                 OutlinedButton(onClick = { vm.shareMemory(m) }) { Text("📤 Compartir") }
+                                OutlinedButton(onClick = { musicFor = m }, enabled = vm.memoryWork == null) { Text("🎵 Música") }
                             }
                             OutlinedButton(onClick = { uploading = m }) { Text("👨‍👩‍👧 Subir a la familia") }
                             TextButton(onClick = { vm.deleteMemory(m) }) { Text("🗑 Borrar") }
@@ -208,6 +219,32 @@ fun MemoriesScreen(vm: MainViewModel) {
     }
 
     uploading?.let { m -> UploadMemoryDialog(vm, m) { uploading = null } }
+    musicFor?.let { m -> MemoryMusicDialog(vm, m) { musicFor = null } }
+}
+
+/** Cambiar la música de un recuerdo. */
+@Composable
+private fun MemoryMusicDialog(vm: MainViewModel, m: Memories.Memory, onDismiss: () -> Unit) {
+    val songs by vm.songs.collectAsState()
+    var key by remember { mutableStateOf(songs.firstOrNull()?.let { com.daniviaworld.momentos.data.MusicLibrary.familyKey(it) } ?: "alegre") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("🎵 Música de «${m.title}»") },
+        text = {
+            Column {
+                Text("Elige la canción nueva (primero las de la familia):")
+                Spacer(Modifier.height(8.dp))
+                MusicChips(selected = key, onSelect = { key = it }, songs = songs)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                vm.changeMemoryMusic(m, key)
+                onDismiss()
+            }) { Text("Cambiar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
 }
 
 /** Elegir en qué álbum se sube el recuerdo. */

@@ -1,6 +1,8 @@
 package com.daniviaworld.momentos.ui
 
 import android.graphics.Bitmap
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,6 +67,8 @@ import com.daniviaworld.momentos.image.ImageProcessor
 import com.daniviaworld.momentos.media.AlbumVideoMaker
 import com.daniviaworld.momentos.media.CollageMaker
 import com.daniviaworld.momentos.media.CollageOptions
+import com.daniviaworld.momentos.media.GifMaker
+import com.daniviaworld.momentos.media.GifOptions
 import com.daniviaworld.momentos.media.PhotoBookMaker
 import com.daniviaworld.momentos.share.Sharer
 import kotlinx.coroutines.Dispatchers
@@ -286,6 +290,146 @@ fun BookDialog(
                     )
                     Spacer(Modifier.height(8.dp))
                     FrameThumbPicker(small, theme) { theme = it }
+                }
+            }
+        }
+    }
+}
+
+/** GIF animado: elegir fotos (y su orden), velocidad, tamaño, forma y transición, con vista previa en movimiento. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GifDialog(
+    title: String,
+    photos: List<Photo>,
+    onDismiss: () -> Unit,
+    onCreate: (List<Photo>, GifOptions) -> Unit,
+) {
+    val context = LocalContext.current
+    var tab by remember { mutableIntStateOf(0) }
+    var chosenIds by remember { mutableStateOf(GifMaker.suggested(photos).map { it.id }) }
+    var options by remember { mutableStateOf(GifOptions()) }
+    val thumbs = remember { mutableStateMapOf<String, Bitmap>() }
+    val chosen = chosenIds.mapNotNull { id -> photos.firstOrNull { it.id == id } }
+    LaunchedEffect(chosenIds) {
+        for (p in chosen) {
+            if (thumbs[p.id] == null) loadThumb(context.cacheDir, p, 520)?.let { thumbs[p.id] = it }
+        }
+    }
+    val ready = chosen.mapNotNull { thumbs[it.id] }
+    val sequence = remember(ready.size, chosenIds, options.boomerang) {
+        val idx = ready.indices.toMutableList()
+        if (options.boomerang && ready.size > 2) idx += (ready.size - 2 downTo 1)
+        idx
+    }
+    // vista previa: pasa por las fotos a la velocidad elegida
+    var step by remember { mutableIntStateOf(0) }
+    LaunchedEffect(options.speed, sequence.size) {
+        while (true) {
+            kotlinx.coroutines.delay(GifMaker.holdCs(options.speed) * 10L + if (options.transition == "fundido") 280L else 0L)
+            step++
+        }
+    }
+    val ratio = options.size.toFloat() / GifMaker.height(options)
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = Color(0xFF0E0F1A), contentColor = Color.White) {
+            Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Cerrar", tint = Color.White) }
+                    Text("🎞️ GIF animado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Button(onClick = { onCreate(chosen, options) }, enabled = chosen.size >= 2) { Text("Crear") }
+                }
+                Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                    when {
+                        chosen.size < 2 -> Text("Elige al menos 2 fotos en la pestaña «Fotos».")
+                        ready.isEmpty() || sequence.isEmpty() -> CircularProgressIndicator(color = Color.White)
+                        else -> {
+                            val current = ready[sequence[step.mod(sequence.size)].coerceIn(0, ready.size - 1)]
+                            Box(Modifier.aspectRatio(ratio).clip(RoundedCornerShape(8.dp))) {
+                                Crossfade(
+                                    targetState = current,
+                                    animationSpec = tween(if (options.transition == "fundido") 280 else 0),
+                                    label = "gif",
+                                ) { bmp ->
+                                    Image(bmp.asImageBitmap(), "Vista previa", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                }
+                            }
+                        }
+                    }
+                }
+                TabRow(selectedTabIndex = tab, containerColor = Color(0xFF181A2B), contentColor = Color.White) {
+                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("📷 Fotos") })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("🎨 Estilo") })
+                }
+                Box(Modifier.fillMaxWidth().height(270.dp).padding(12.dp)) {
+                    if (tab == 0) {
+                        Column {
+                            Text(
+                                "Elegidas ${chosen.size} de ${GifMaker.MAX_PHOTOS} máximo · el número es su orden",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFB8BBD0),
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(76.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                items(photos.size) { i ->
+                                    val ph = photos[i]
+                                    val order = chosenIds.indexOf(ph.id)
+                                    Box(
+                                        Modifier
+                                            .aspectRatio(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .border(
+                                                if (order >= 0) 3.dp else 0.dp,
+                                                if (order >= 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                RoundedCornerShape(8.dp),
+                                            )
+                                            .clickable {
+                                                chosenIds = when {
+                                                    order >= 0 -> chosenIds - ph.id
+                                                    chosenIds.size < GifMaker.MAX_PHOTOS -> chosenIds + ph.id
+                                                    else -> chosenIds
+                                                }
+                                            },
+                                    ) {
+                                        AsyncImage(model = ph.thumbUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                        if (order >= 0) {
+                                            Box(
+                                                Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp)
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.primary),
+                                                contentAlignment = Alignment.Center,
+                                            ) { Text("${order + 1}", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            Text("Velocidad", fontWeight = FontWeight.Bold)
+                            ChipRows(GifMaker.speeds, options.speed, perRow = 3) { options = options.copy(speed = it) }
+                            Text("Transición", fontWeight = FontWeight.Bold)
+                            ChipRows(GifMaker.transitions, options.transition) { options = options.copy(transition = it) }
+                            Text("Forma", fontWeight = FontWeight.Bold)
+                            ChipRows(GifMaker.formats, options.format, perRow = 3) { options = options.copy(format = it) }
+                            Text("Tamaño", fontWeight = FontWeight.Bold)
+                            ChipRows(GifMaker.sizes.map { it.first.toString() to it.second }, options.size.toString(), perRow = 3) {
+                                options = options.copy(size = it.toInt())
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🔁 Ida y vuelta (boomerang)", modifier = Modifier.weight(1f))
+                                Switch(checked = options.boomerang, onCheckedChange = { options = options.copy(boomerang = it) })
+                            }
+                        }
+                    }
                 }
             }
         }

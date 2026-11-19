@@ -143,12 +143,13 @@ fun CreationDialogs(vm: MainViewModel) {
         is Creation.Done -> {
             val what = when (c.kind) {
                 "video" -> "El vídeo"
+                "gif" -> "El GIF animado"
                 "collage" -> "El collage"
                 else -> "El libro de fotos (PDF)"
             }
             val where = when (c.kind) {
                 "video" -> "Películas › DANIVIA Momentos"
-                "collage" -> "Imágenes › DANIVIA Momentos"
+                "collage", "gif" -> "Imágenes › DANIVIA Momentos"
                 else -> "Descargas › DANIVIA Momentos"
             }
             AlertDialog(
@@ -163,7 +164,8 @@ fun CreationDialogs(vm: MainViewModel) {
                 confirmButton = {
                     Column(horizontalAlignment = Alignment.End) {
                         Button(onClick = { vm.shareCreation() }) { Text("Compartir") }
-                        if (c.kind != "book") {
+                        // un GIF subido se convertiría en foto fija: se comparte (WhatsApp lo anima)
+                        if (c.kind != "book" && c.kind != "gif") {
                             OutlinedButton(onClick = { vm.addCreationToAlbum() }) { Text("Añadir al álbum") }
                         }
                     }
