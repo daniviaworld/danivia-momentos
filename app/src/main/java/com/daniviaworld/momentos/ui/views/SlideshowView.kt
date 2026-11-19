@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,7 +52,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun SlideshowView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicUri: android.net.Uri? = null) {
     KeepScreenOn()
-    var index by remember { mutableIntStateOf(0) }
+    // se recuerda al ir a ver una foto y volver
+    var index by rememberSaveable { mutableIntStateOf(0) }
     var interaction by remember { mutableIntStateOf(0) }
     val focus = remember { FocusRequester() }
     val count = photos.size
@@ -154,6 +156,7 @@ private fun KenBurns(photo: Photo, seed: Int) {
                     translationY = dirY * 0.03f * size.height * (t - 0.5f)
                 },
             ContentScale.Fit,
+            sharp = true,
         )
     }
 }

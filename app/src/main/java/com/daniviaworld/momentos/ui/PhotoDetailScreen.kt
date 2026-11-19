@@ -364,7 +364,7 @@ private fun Modifier.pageTransition(pager: PagerState, page: Int, mode: ViewMode
                     transformOrigin = TransformOrigin(if (o > 0f) 1f else 0f, 0.5f)
                     rotationY = -90f * o
                 }
-                ViewMode.CINEMA -> {
+                ViewMode.CINEMA, ViewMode.TABLE -> {
                     // la foto que se va se queda detrás, se aleja y se apaga; la nueva entra por encima
                     if (o > 0f) {
                         translationX = size.width * o
@@ -412,7 +412,7 @@ private fun clampOffset(o: Offset, scale: Float, width: Int, height: Int): Offse
 /** Duración del paso de una foto a otra: lo bastante lento para que se aprecie el efecto del modo. */
 private fun transitionSpec(mode: ViewMode): AnimationSpec<Float> = when (mode) {
     ViewMode.CUBE -> tween(durationMillis = 900, easing = FastOutSlowInEasing)
-    ViewMode.CINEMA -> tween(durationMillis = 850, easing = FastOutSlowInEasing)
+    ViewMode.CINEMA, ViewMode.TABLE -> tween(durationMillis = 850, easing = FastOutSlowInEasing)
     ViewMode.CAROUSEL -> tween(durationMillis = 750, easing = FastOutSlowInEasing)
     ViewMode.SLIDESHOW -> tween(durationMillis = 1000, easing = LinearOutSlowInEasing)
     else -> tween(durationMillis = 450, easing = FastOutSlowInEasing)

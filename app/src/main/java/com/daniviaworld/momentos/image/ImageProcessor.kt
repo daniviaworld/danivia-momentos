@@ -16,7 +16,7 @@ object ImageProcessor {
     class Result(val full: ByteArray, val thumb: ByteArray, val width: Int, val height: Int)
 
     private const val MAX_SIDE = 2560
-    private const val THUMB_SIDE = 520
+    private const val THUMB_SIDE = 800
 
     fun process(context: Context, uri: Uri, enhance: Boolean, frame: String = ""): Result {
         val source = decode(context, uri, MAX_SIDE)
@@ -24,7 +24,7 @@ object ImageProcessor {
         if (improved !== source) source.recycle()
         val finalBmp = Frames.apply(improved, frame)
         if (finalBmp !== improved) improved.recycle()
-        val full = compress(finalBmp, 88)
+        val full = compress(finalBmp, 92)
         val thumbBmp = scaleToMax(finalBmp, THUMB_SIDE)
         val thumb = compress(thumbBmp, 80)
         val w = finalBmp.width
@@ -44,7 +44,7 @@ object ImageProcessor {
         if (withStickers !== source) source.recycle()
         val finalBmp = Frames.apply(withStickers, frame)
         if (finalBmp !== withStickers) withStickers.recycle()
-        val full = compress(finalBmp, 90)
+        val full = compress(finalBmp, 92)
         val thumbBmp = scaleToMax(finalBmp, THUMB_SIDE)
         val thumb = compress(thumbBmp, 80)
         val w = finalBmp.width

@@ -156,7 +156,7 @@ fun UploadScreen(vm: MainViewModel) {
                     Column(Modifier.weight(1f)) {
                         Text("✨ Mejora automática", fontWeight = FontWeight.Bold)
                         Text(
-                            "Arregla luz, color y nitidez. Los vídeos se ajustan y se reducen a 720p.",
+                            "Arregla luz, color y nitidez. Apágalo para subir las fotos tal cual. Los vídeos se guardan en 1080p.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

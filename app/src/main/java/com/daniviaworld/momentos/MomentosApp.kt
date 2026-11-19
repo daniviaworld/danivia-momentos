@@ -33,6 +33,8 @@ class MomentosApp : Application(), ImageLoaderFactory {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
         if (!isTelevision(this)) NewPhotosWorker.schedule(this)
+        // recuerdos automáticos (también en la tele, que siempre está enchufada)
+        com.daniviaworld.momentos.work.MemoriesWorker.schedule(this)
     }
 
     /** Coil con soporte para miniaturas de vídeo (pantalla de subir). */

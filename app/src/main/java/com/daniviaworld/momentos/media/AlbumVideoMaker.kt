@@ -80,8 +80,8 @@ object AlbumVideoMaker {
 
         // Orientación: la de la mayoría de fotos
         val portrait = chosen.count { it.height > it.width } >= chosen.size / 2.0
-        val w = if (portrait) 720 else 1280
-        val h = if (portrait) 1280 else 720
+        val w = if (portrait) 1080 else 1920
+        val h = if (portrait) 1920 else 1080
 
         val work = File(Sharer.creationsDir(app), "video_tmp").apply {
             deleteRecursively(); mkdirs()
@@ -218,7 +218,7 @@ object AlbumVideoMaker {
     ) = coroutineScope {
         withContext(Dispatchers.Main) {
             val encoders = DefaultEncoderFactory.Builder(context)
-                .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(5_000_000).build())
+                .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(8_000_000).build())
                 .build()
 
             var transformer: Transformer? = null
@@ -286,7 +286,7 @@ object AlbumVideoMaker {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         c.drawColor(Color.rgb(17, 19, 37))
-        loadScaled(photo, 1600)?.let { drawCrop(c, it, RectF(0f, 0f, w.toFloat(), h.toFloat())) }
+        loadScaled(photo, 2048)?.let { drawCrop(c, it, RectF(0f, 0f, w.toFloat(), h.toFloat())) }
         val shade = Paint().apply {
             shader = LinearGradient(0f, 0f, 0f, h.toFloat(),
                 intArrayOf(Color.argb(90, 0, 0, 0), Color.argb(200, 10, 8, 30)), null, Shader.TileMode.CLAMP)

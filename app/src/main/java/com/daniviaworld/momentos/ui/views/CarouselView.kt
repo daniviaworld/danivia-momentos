@@ -124,7 +124,7 @@ fun CarouselView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit) {
                     .clip(RoundedCornerShape(22.dp))
                     .then(if (isTv) Modifier else Modifier.clickable { interaction++; onOpen(photo) }),
             ) {
-                PhotoImage(photo.url, Modifier.fillMaxSize())
+                PhotoImage(photo.url, Modifier.fillMaxSize(), sharp = isTv)
                 VideoBadge(photo, big = true)
                 SocialBadge(photo)
             }

@@ -44,10 +44,10 @@ private val helpPhone = listOf(
     HelpSection(
         "📲 Subir y ver fotos",
         listOf(
-            HelpItem("➕", "Subir fotos y vídeos", "Pulsa ＋ y elige de la galería (hasta 50 a la vez). La app mejora la luz y el color sola. Vídeos de hasta 5 minutos."),
+            HelpItem("➕", "Subir fotos y vídeos", "Pulsa ＋ y elige de la galería (hasta 50 a la vez). La app mejora la luz y el color sola; si no lo quieres, apaga «Mejora automática» al subir o en Familia. Vídeos de hasta 5 minutos."),
             HelpItem("🖼️", "25 marcos", "Al subir puedes elegir marco: Polaroid, Neón, Cumpleaños, Navidad, Halloween, Postal, Cole… Verás tu propia foto con cada uno."),
             HelpItem("📁", "Álbumes", "Guarda las fotos en un álbum o crea uno nuevo con «➕ Nuevo álbum» al subir. Todos los álbumes están en 🗂️."),
-            HelpItem("👀", "5 formas de verlas", "Cuadrícula, Carrusel, Estilo cine, Cubo 3D y Diapositivas con música. Se cambia arriba. Al pasar de foto, el efecto depende del modo."),
+            HelpItem("👀", "8 formas de verlas", "Cuadrícula, Carrusel, Estilo cine, Cubo 3D, Diapositivas con música, Mosaico, Línea del tiempo y Mesa de fotos (polaroids que caen solas). Se cambia arriba."),
             HelpItem("🔍", "Ver en grande", "Toca una foto. Desliza para pasar a la siguiente. Pellizca con dos dedos o haz doble toque para hacer zoom."),
             HelpItem("☑️", "Elegir varias", "Mantén pulsada una foto en la cuadrícula para elegir varias y moverlas de álbum.", adminOnly = true),
         ),
@@ -67,6 +67,7 @@ private val helpPhone = listOf(
     HelpSection(
         "🎬 Creaciones",
         listOf(
+            HelpItem("🍿", "Recuerdos automáticos", "Como Google Fotos: la app busca sola momentos especiales (Tal día como hoy, lo mejor del mes, un gran día, las favoritas) y te prepara un vídeo con música. Están en 🎬 Recuerdos; desde ahí puedes compartirlos o subirlos a la familia."),
             HelpItem("🎬", "Vídeo, collage y libro", "En 🗂️ Álbumes, toca ⋯ en un álbum: vídeo con música, collage (eliges fotos, forma, fondo y marco) o libro PDF para imprimir con el diseño de página que quieras."),
             HelpItem("✏️", "Editar una foto ya subida", "Abre la foto y toca ✏️: pegatinas (arrástralas con el dedo), texto y marco. Siempre se puede volver a la original.", adminOnly = true),
             HelpItem("🎵", "Cambiar la música de un vídeo", "Abre el vídeo y toca 🎵. Elige la música nueva; deja apagado «Mantener el sonido original» para quitar la vieja.", adminOnly = true),

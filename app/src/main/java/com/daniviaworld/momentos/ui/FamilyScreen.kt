@@ -168,6 +168,30 @@ fun FamilyScreen(vm: MainViewModel) {
             }
         }
 
+        // Mejora automática de las fotos al subirlas
+        if (!vm.isTv) {
+            item {
+                var enhance by remember { mutableStateOf(vm.prefs.autoEnhance) }
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("✨ Mejora automática de fotos", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (enhance) "Encendida: al subir, la app arregla luz, color y nitidez."
+                                else "Apagada: las fotos se suben tal cual las hiciste.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = enhance, onCheckedChange = {
+                            enhance = it
+                            vm.prefs.autoEnhance = it
+                        })
+                    }
+                }
+            }
+        }
+
         // Salvapantallas (sobre todo para la tele)
         item {
             var help by remember { mutableStateOf(false) }
@@ -204,6 +228,7 @@ fun FamilyScreen(vm: MainViewModel) {
                             "cube" to "🧊 Cubo 3D girando",
                             "slideshow" to "🖼️ Diapositivas",
                             "carousel" to "🎠 Carrusel",
+                            "table" to "🃏 Mesa de fotos",
                         ).forEach { (key, label) ->
                             FilterChip(
                                 selected = vm.screensaverMode == key,

@@ -131,7 +131,8 @@ fun GridView(
                     focusScale = 1.1f,
                     onLongClick = onLongPress?.let { cb -> { cb(photo) } },
                 ) {
-                    PhotoImage(photo.thumbUrl, Modifier.fillMaxSize())
+                    // en la tele, la foto completa (las miniaturas se quedan cortas en pantalla grande)
+                    PhotoImage(if (isTv) photo.url else photo.thumbUrl, Modifier.fillMaxSize())
                     VideoBadge(photo)
                     // en el móvil las miniaturas son pequeñas: sólo el corazón para no pisar la etiqueta de vídeo
                     SocialBadge(photo, compact = !isTv)

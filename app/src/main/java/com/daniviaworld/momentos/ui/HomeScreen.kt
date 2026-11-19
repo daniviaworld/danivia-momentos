@@ -55,6 +55,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +68,9 @@ import com.daniviaworld.momentos.data.ViewMode
 import com.daniviaworld.momentos.ui.views.CarouselView
 import com.daniviaworld.momentos.ui.views.CinemaView
 import com.daniviaworld.momentos.ui.views.CubeView
+import com.daniviaworld.momentos.ui.views.MosaicView
+import com.daniviaworld.momentos.ui.views.TableView
+import com.daniviaworld.momentos.ui.views.TimelineView
 import com.daniviaworld.momentos.ui.views.GridView
 import com.daniviaworld.momentos.ui.views.SlideshowView
 
@@ -98,6 +103,7 @@ fun HomeScreen(vm: MainViewModel) {
     // TV: "Atrás" en la pantalla principal lleva a la fila de modos (nunca te quedas atrapado en una vista)
     val modesFocus = remember { FocusRequester() }
     var modesHaveFocus by remember { mutableStateOf(false) }
+    var contentFocused by remember { mutableStateOf(false) }
     BackHandler(enabled = vm.isTv && !modesHaveFocus) {
         try {
             modesFocus.requestFocus()
@@ -118,19 +124,20 @@ fun HomeScreen(vm: MainViewModel) {
                     onMove = { picking = true },
                 )
             } else if (vm.isTv) {
-                Header(
+                // TV: todo en UNA fila fina (logo, modos, álbumes, familia) para dejar la pantalla a las fotos
+                val openAlbum = albums.firstOrNull { it.id == vm.albumFilter }?.title
+                    ?: if (vm.albumFilter == NO_ALBUM) "📂 Sin álbum" else null
+                TvTopBar(
                     title = family?.name ?: "DANIVIA Momentos",
-                    isTv = true,
-                    count = countLabel(allPhotos),
-                    onFamily = { vm.screen = Screen.FamilyInfo },
-                    onAlbums = { vm.screen = Screen.Albums },
-                )
-                ModeSelector(
+                    subtitle = if (openAlbum != null) "$openAlbum · ${countLabel(photos)}" else countLabel(allPhotos),
                     current = vm.viewMode,
-                    isTv = true,
                     focusRequester = modesFocus,
                     onFocusChange = { modesHaveFocus = it },
-                ) { vm.selectViewMode(it) }
+                    onMode = { vm.selectViewMode(it) },
+                    onAlbums = { vm.screen = Screen.Albums },
+                    onFamily = { vm.screen = Screen.FamilyInfo },
+                    onMemories = { vm.screen = Screen.Memories },
+                )
             } else {
                 // Móvil: una sola barra compacta para que las fotos tengan todo el protagonismo
                 PhoneTopBar(
@@ -140,13 +147,17 @@ fun HomeScreen(vm: MainViewModel) {
                     onMode = { vm.selectViewMode(it) },
                     onAlbums = { vm.screen = Screen.Albums },
                     onFamily = { vm.screen = Screen.FamilyInfo },
+                    onMemories = { vm.screen = Screen.Memories },
                 )
             }
 
-            AlbumFilterRow(vm, albums, allPhotos)
+            // En la tele, la fila de álbumes se esconde mientras navegas por las fotos (vuelve al subir)
+            AnimatedVisibility(visible = !vm.isTv || !contentFocused) {
+                AlbumFilterRow(vm, albums, allPhotos)
+            }
 
-            // Barra del álbum abierto, con flecha para volver
-            if (vm.albumFilter != ALL_ALBUMS && !vm.selecting) {
+            // Barra del álbum abierto, con flecha para volver (en la tele el álbum ya sale en la fila de arriba)
+            if (vm.albumFilter != ALL_ALBUMS && !vm.selecting && !vm.isTv) {
                 val title = albums.firstOrNull { it.id == vm.albumFilter }?.title ?: "📂 Sin álbum"
                 Row(
                     Modifier
@@ -175,8 +186,14 @@ fun HomeScreen(vm: MainViewModel) {
             }
 
             if (upload.total > 0) UploadBanner(upload) { UploadManager.clear() }
+            if (!vm.selecting && (!vm.isTv || !contentFocused)) NewMemoryBanner(vm)
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .onFocusChanged { contentFocused = it.hasFocus },
+            ) {
                 if (photos.isEmpty()) {
                     if (allPhotos.isEmpty()) EmptyState(vm.isTv)
                     else Text(
@@ -201,9 +218,18 @@ fun HomeScreen(vm: MainViewModel) {
                             vm.isTv,
                             open,
                             albums = if (vm.albumFilter == ALL_ALBUMS) albums else emptyList(),
+                            onOpenIn = { p, list -> vm.screen = Screen.Detail(p.id, list.map { it.id }) },
                         )
                         ViewMode.CUBE -> CubeView(photos, vm.isTv, open, musicUri = vm.musicUri(vm.musicKey(albums)))
                         ViewMode.SLIDESHOW -> SlideshowView(photos, vm.isTv, open, musicUri = vm.musicUri(vm.musicKey(albums)))
+                        ViewMode.MOSAIC -> MosaicView(photos, vm.isTv, open)
+                        ViewMode.TIMELINE -> TimelineView(
+                            photos,
+                            vm.isTv,
+                            open,
+                            onOpenIn = { p, list -> vm.screen = Screen.Detail(p.id, list.map { it.id }) },
+                        )
+                        ViewMode.TABLE -> TableView(photos, vm.isTv, open)
                     }
                 }
             }
@@ -313,6 +339,7 @@ private fun PhoneTopBar(
     onMode: (ViewMode) -> Unit,
     onAlbums: () -> Unit,
     onFamily: () -> Unit,
+    onMemories: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -383,6 +410,7 @@ private fun PhoneTopBar(
                 }
             }
         }
+        IconButton(onClick = onMemories) { Text("🎬", fontSize = 20.sp) }
         IconButton(onClick = onAlbums) { Text("🗂️", fontSize = 20.sp) }
         IconButton(onClick = onFamily) { Icon(Icons.Filled.Person, contentDescription = "Familia") }
     }
@@ -419,6 +447,76 @@ private fun ModeSelector(
         }
     }
     Spacer(Modifier.height(8.dp))
+}
+
+/** Cabecera de la tele en una sola fila. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TvTopBar(
+    title: String,
+    subtitle: String,
+    current: ViewMode,
+    focusRequester: FocusRequester,
+    onFocusChange: (Boolean) -> Unit,
+    onMode: (ViewMode) -> Unit,
+    onAlbums: () -> Unit,
+    onFamily: () -> Unit,
+    onMemories: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 40.dp, end = 40.dp, top = 14.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.logo_momentos),
+            contentDescription = null,
+            modifier = Modifier.size(38.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.widthIn(max = 220.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Row(
+            Modifier
+                .weight(1f)
+                .onFocusChanged { onFocusChange(it.hasFocus) }
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ViewMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = mode == current,
+                    onClick = { onMode(mode) },
+                    modifier = if (mode == current) Modifier.focusRequester(focusRequester) else Modifier,
+                    label = { Text("${mode.icon} ${mode.label}", maxLines = 1) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Orange,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        OutlinedButton(onClick = onMemories) { Text("🎬 Recuerdos", maxLines = 1) }
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(onClick = onAlbums) { Text("🗂️ Álbumes", maxLines = 1) }
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(onClick = onFamily) {
+            Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Familia", maxLines = 1)
+        }
+    }
 }
 
 @Composable

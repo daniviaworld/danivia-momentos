@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -107,8 +108,17 @@ private fun ReadyContent(vm: MainViewModel) {
             showHelp = false
         }
     }
+    // Al tocar la notificación de un recuerdo nuevo
+    LaunchedEffect(OpenRequests.memories) {
+        if (OpenRequests.memories) {
+            OpenRequests.memories = false
+            vm.screen = Screen.Memories
+        }
+    }
+    // Guarda el estado de cada pantalla (dónde estabas en la lista) para volver justo ahí
+    val saved = rememberSaveableStateHolder()
     when (val s = vm.screen) {
-        Screen.Home -> HomeScreen(vm)
+        Screen.Home -> saved.SaveableStateProvider("home") { HomeScreen(vm) }
         Screen.Upload -> {
             BackHandler { vm.screen = Screen.Home }
             UploadScreen(vm)
@@ -121,13 +131,26 @@ private fun ReadyContent(vm: MainViewModel) {
             BackHandler { vm.screen = Screen.Home }
             AlbumsScreen(vm)
         }
+        Screen.Memories -> {
+            BackHandler { vm.screen = Screen.Home }
+            MemoriesScreen(vm)
+        }
         is Screen.Detail -> {
             BackHandler { vm.screen = Screen.Home }
-            if (photos.isEmpty()) {
+            // las fotos de la fila desde la que se abrió, o las del álbum que se está viendo
+            val list = remember(s.ids, photos, allPhotos) {
+                val ids = s.ids
+                if (ids == null) photos
+                else {
+                    val byId = allPhotos.associateBy { it.id }
+                    ids.mapNotNull { byId[it] }.ifEmpty { photos }
+                }
+            }
+            if (list.isEmpty()) {
                 LaunchedEffect(Unit) { vm.screen = Screen.Home }
             } else {
-                val start = remember(s.photoId) { photos.indexOfFirst { it.id == s.photoId }.coerceAtLeast(0) }
-                PhotoDetailScreen(vm, photos, start)
+                val start = remember(s.photoId) { list.indexOfFirst { it.id == s.photoId }.coerceAtLeast(0) }
+                PhotoDetailScreen(vm, list, start)
             }
         }
     }

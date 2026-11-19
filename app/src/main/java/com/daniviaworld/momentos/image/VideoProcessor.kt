@@ -36,7 +36,7 @@ import kotlin.math.roundToInt
 
 /**
  * Prepara un vídeo para subirlo:
- *  - lo reduce a 720p (lado corto) y ~4 Mbps para que no ocupe demasiado,
+ *  - lo deja en 1080p (lado corto) y ~7 Mbps: calidad Full HD para la tele sin pasarse de tamaño,
  *  - le aplica una mejora suave de brillo, contraste y color si hace falta,
  *  - saca un fotograma de portada (mejorado) y su miniatura.
  * Si el móvil no puede convertirlo, se sube el original (si no es enorme).
@@ -46,8 +46,8 @@ object VideoProcessor {
 
     const val MAX_DURATION_MS = 5 * 60_000L
     private const val MAX_ORIGINAL_BYTES = 290L * 1024 * 1024
-    private const val SHORT_SIDE = 720
-    private const val BITRATE = 4_000_000
+    private const val SHORT_SIDE = 1080
+    private const val BITRATE = 7_000_000
 
     class Prepared(
         val file: File,
@@ -107,7 +107,7 @@ object VideoProcessor {
     }
 
     /**
-     * Altura de salida (en orientación de pantalla) para que el lado corto quede en 720 px.
+     * Altura de salida (en orientación de pantalla) para que el lado corto quede en 1080 px.
      * null = el vídeo ya es pequeño, no se cambia el tamaño.
      */
     private fun targetHeight(width: Int, height: Int): Int? {

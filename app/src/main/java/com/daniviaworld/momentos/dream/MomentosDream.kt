@@ -18,6 +18,7 @@ import com.daniviaworld.momentos.data.MusicLibrary
 import com.daniviaworld.momentos.data.Photo
 import com.daniviaworld.momentos.ui.BackgroundMusic
 import com.daniviaworld.momentos.ui.views.CarouselView
+import com.daniviaworld.momentos.ui.views.TableView
 import com.daniviaworld.momentos.data.Prefs
 import com.daniviaworld.momentos.data.Repo
 import com.daniviaworld.momentos.ui.MomentosTheme
@@ -75,6 +76,10 @@ class MomentosDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                             "slideshow" -> SlideshowView(list, isTv = true, onOpen = {}, musicUri = music)
                             "carousel" -> {
                                 CarouselView(list, isTv = true, onOpen = {})
+                                BackgroundMusic(music)
+                            }
+                            "table" -> {
+                                TableView(list, isTv = true, onOpen = {}, secondsPerPhoto = 7)
                                 BackgroundMusic(music)
                             }
                             else -> CubeView(list, isTv = true, onOpen = {}, musicUri = music)

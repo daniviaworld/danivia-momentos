@@ -85,7 +85,10 @@ enum class ViewMode(val key: String, val label: String, val icon: String) {
     CAROUSEL("carousel", "Carrusel", "🎠"),
     CINEMA("cinema", "Estilo cine", "🎬"),
     CUBE("cube", "Cubo 3D", "🧊"),
-    SLIDESHOW("slideshow", "Diapositivas", "🖼️");
+    SLIDESHOW("slideshow", "Diapositivas", "🖼️"),
+    MOSAIC("mosaic", "Mosaico", "🧱"),
+    TIMELINE("timeline", "Línea del tiempo", "📅"),
+    TABLE("table", "Mesa de fotos", "🃏");
 
     companion object {
         fun fromKey(key: String?): ViewMode? = entries.firstOrNull { it.key == key }

@@ -57,7 +57,14 @@ private data class Shelf(val title: String, val photos: List<Photo>)
 
 /** Estilo plataforma de cine: portada grande arriba y filas de fotos que se recorren de lado. */
 @Composable
-fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, albums: List<Album> = emptyList()) {
+fun CinemaView(
+    photos: List<Photo>,
+    isTv: Boolean,
+    onOpen: (Photo) -> Unit,
+    albums: List<Album> = emptyList(),
+    /** Abrir una foto pasando sólo por las de su fila. */
+    onOpenIn: ((Photo, List<Photo>) -> Unit)? = null,
+) {
     val shelves = remember(photos, albums) { buildShelves(photos, albums) }
     val heroPhotos = remember(photos) { photos.take(6) }
 
@@ -82,14 +89,15 @@ fun CinemaView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, albu
                     ) {
                         items(shelf.photos, key = { "${shelf.title}_${it.id}" }) { photo ->
                             FocusCard(
-                                onClick = { onOpen(photo) },
+                                onClick = { if (onOpenIn != null) onOpenIn(photo, shelf.photos) else onOpen(photo) },
                                 // móvil: tarjetas verticales (las fotos del móvil son verticales); TV: apaisadas
                                 modifier = Modifier
                                     .width(if (isTv) 280.dp else 128.dp)
                                     .aspectRatio(if (isTv) 16f / 10f else 3f / 4f),
                                 shape = RoundedCornerShape(if (isTv) 12.dp else 10.dp),
                             ) {
-                                PhotoImage(photo.thumbUrl, Modifier.fillMaxSize())
+                                // en la tele, la foto completa (las miniaturas se quedan cortas en pantalla grande)
+                                PhotoImage(if (isTv) photo.url else photo.thumbUrl, Modifier.fillMaxSize())
                                 VideoBadge(photo)
                                 SocialBadge(photo, compact = !isTv)
                             }
@@ -120,7 +128,7 @@ private fun Hero(heroPhotos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit
             .height(if (isTv) 380.dp else 400.dp)
     ) {
         Crossfade(targetState = photo, animationSpec = tween(1200), label = "hero") { p ->
-            PhotoImage(p.url, Modifier.fillMaxSize())
+            PhotoImage(p.url, Modifier.fillMaxSize(), sharp = true)
         }
         Box(
             Modifier

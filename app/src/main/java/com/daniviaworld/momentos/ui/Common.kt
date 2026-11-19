@@ -64,11 +64,21 @@ fun PhotoImage(
     url: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
+    /**
+     * true = cargar la foto a su resolución completa, no al tamaño justo de la pantalla.
+     * Para vistas a pantalla completa con zoom o animación (cubo, diapositivas, zoom con los dedos),
+     * que si no se ven borrosas al ampliarse.
+     */
+    sharp: Boolean = false,
 ) {
     val context = LocalContext.current
     AsyncImage(
-        model = remember(url) {
-            ImageRequest.Builder(context).data(url).crossfade(350).build()
+        model = remember(url, sharp) {
+            ImageRequest.Builder(context)
+                .data(url)
+                .crossfade(350)
+                .apply { if (sharp) size(coil.size.Size.ORIGINAL) }
+                .build()
         },
         contentDescription = null,
         contentScale = contentScale,
@@ -90,7 +100,7 @@ fun FullPhoto(photo: Photo, modifier: Modifier = Modifier, imageModifier: Modifi
                 ContentScale.Crop
             )
         }
-        PhotoImage(photo.url, imageModifier.fillMaxSize(), ContentScale.Fit)
+        PhotoImage(photo.url, imageModifier.fillMaxSize(), ContentScale.Fit, sharp = true)
     }
 }
 

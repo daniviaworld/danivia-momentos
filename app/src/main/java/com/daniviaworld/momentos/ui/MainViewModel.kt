@@ -21,6 +21,8 @@ import com.daniviaworld.momentos.isTelevision
 import com.daniviaworld.momentos.share.Sharer
 import com.daniviaworld.momentos.media.AlbumVideoMaker
 import com.daniviaworld.momentos.media.VideoMusic
+import com.daniviaworld.momentos.media.Memories
+import com.daniviaworld.momentos.work.MemoriesWorker
 import com.daniviaworld.momentos.image.ImageProcessor
 import com.daniviaworld.momentos.image.Sticker
 import com.daniviaworld.momentos.image.Stickers
@@ -61,7 +63,9 @@ sealed interface Screen {
     data object Upload : Screen
     data object FamilyInfo : Screen
     data object Albums : Screen
-    data class Detail(val photoId: String) : Screen
+    data object Memories : Screen
+    /** [ids] = las fotos por las que se pasa al deslizar (p. ej. las de una fila del estilo cine); null = las del álbum visto. */
+    data class Detail(val photoId: String, val ids: List<String>? = null) : Screen
 }
 
 const val ALL_ALBUMS = "__all__"
@@ -379,6 +383,88 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun canDelete(photo: Photo): Boolean = photo.uploaderUid == myUid || isAdmin()
 
     // ---------- Editar lo ya subido ----------
+
+    // ---------- Recuerdos automáticos ----------
+
+    var memories by mutableStateOf<List<Memories.Memory>>(emptyList())
+        private set
+
+    /** true mientras se prepara un recuerdo a petición ("Prepárame uno ahora"). */
+    var preparingMemory by mutableStateOf(false)
+        private set
+
+    fun refreshMemories() {
+        viewModelScope.launch {
+            memories = withContext(Dispatchers.IO) { Memories.list(getApplication<Application>()) }
+        }
+    }
+
+    fun prepareMemoryNow() {
+        if (preparingMemory) return
+        val app = getApplication<Application>()
+        preparingMemory = true
+        MemoriesWorker.runNow(app)
+        viewModelScope.launch {
+            val wm = androidx.work.WorkManager.getInstance(app)
+            var found: Boolean? = null
+            // se espera a que termine (como mucho ~10 minutos)
+            for (attempt in 0 until 300) {
+                kotlinx.coroutines.delay(2000)
+                val info = withContext(Dispatchers.IO) {
+                    try {
+                        wm.getWorkInfosForUniqueWork(MemoriesWorker.workName()).get().lastOrNull()
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                if (info != null && info.state.isFinished) {
+                    found = info.outputData.getBoolean("found", false) && info.state == androidx.work.WorkInfo.State.SUCCEEDED
+                    break
+                }
+            }
+            preparingMemory = false
+            refreshMemories()
+            message = when (found) {
+                true -> "🎬 ¡Recuerdo listo!"
+                false -> "Ahora mismo no hay momentos nuevos. Cuando los haya, te avisaremos."
+                null -> "Sigue preparándose; te avisaremos cuando esté."
+            }
+        }
+    }
+
+    fun markMemorySeen(m: Memories.Memory) {
+        if (m.seen) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { Memories.markSeen(getApplication<Application>(), m.key) }
+            refreshMemories()
+        }
+    }
+
+    fun shareMemory(m: Memories.Memory) {
+        Sharer.shareFile(getApplication<Application>(), java.io.File(m.videoPath), "video/mp4", "Compartir recuerdo")
+    }
+
+    fun deleteMemory(m: Memories.Memory) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { Memories.delete(getApplication<Application>(), m.key) }
+            refreshMemories()
+        }
+    }
+
+    /** Sube el recuerdo a la familia (para verlo todos, también en la tele). */
+    fun uploadMemory(m: Memories.Memory, albumId: String?) {
+        val fid = prefs.familyId ?: return
+        UploadManager.start(
+            getApplication<Application>(),
+            fid,
+            listOf(android.net.Uri.fromFile(java.io.File(m.videoPath))),
+            enhance = false,
+            myName = prefs.myName.ifBlank { "Alguien" },
+            albumId = albumId,
+        )
+        message = "⬆️ Subiendo «${m.title}» para toda la familia…"
+        screen = Screen.Home
+    }
 
     /** Pueden editar (marco, pegatinas, música del vídeo) el admin y quien la subió. */
     fun canEdit(photo: Photo): Boolean = !isTv && (photo.uploaderUid == myUid || isAdmin())

@@ -168,6 +168,14 @@ object Repo {
                 onChange(snap.documents.mapNotNull { it.toPhoto() })
             }
 
+    /** Todas las fotos de una vez (para trabajos en segundo plano, como los recuerdos). */
+    suspend fun fetchPhotos(fid: String): List<Photo> =
+        families().document(fid).collection("photos")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(3000)
+            .get().await()
+            .documents.mapNotNull { it.toPhoto() }
+
     fun DocumentSnapshot.toPhoto(): Photo? {
         val url = getString("url") ?: return null
         val created = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)

@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,7 +72,8 @@ import kotlin.math.sin
 fun CubeView(photos: List<Photo>, isTv: Boolean, onOpen: (Photo) -> Unit, musicUri: android.net.Uri? = null) {
     KeepScreenOn()
     BackgroundMusic(musicUri)
-    var index by remember { mutableIntStateOf(0) }
+    // se recuerda al ir a ver una foto y volver
+    var index by rememberSaveable { mutableIntStateOf(0) }
     var vertical by remember { mutableStateOf(false) }
     var forward by remember { mutableStateOf(true) }
     val progress = remember { Animatable(0f) }
@@ -247,7 +249,7 @@ private fun Face(photo: Photo, shape: RoundedCornerShape, shade: Float, modifier
         )
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
         // Delante: la foto ENTERA y centrada, sin recortar caras
-        PhotoImage(photo.url, Modifier.fillMaxSize(), ContentScale.Fit)
+        PhotoImage(photo.url, Modifier.fillMaxSize(), ContentScale.Fit, sharp = true)
         VideoBadge(photo, big = true)
         // las caras que giran se oscurecen, como si les diera menos luz
         Box(
